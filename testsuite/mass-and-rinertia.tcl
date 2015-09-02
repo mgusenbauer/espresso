@@ -1,4 +1,4 @@
-# Copyright (C) 2011,2012 The ESPResSo project
+# Copyright (C) 2011,2012,2013,2014 The ESPResSo project
 #  
 # This file is part of ESPResSo.
 #  
@@ -58,7 +58,7 @@ for {set i 0} {$i <$loops} {incr i} {
  # Get kinetic energy in each degree of freedom for all particles
  for {set p 0} {$p <$n} {incr p} {
   set v [part $p print v]
-  set o [part $p print omega]
+  set o [part $p print omega_lab]
   set ox2 [expr $ox2 +pow([lindex $o 0],2)]
   set oy2 [expr $oy2 +pow([lindex $o 1],2)]
   set oz2 [expr $oz2 +pow([lindex $o 2],2)]
@@ -90,7 +90,7 @@ if { abs($dv) > $tolerance } {
  error "Relative deviation in translational energy too large: $dv"
 }
 if { abs($do) > $tolerance } {
- error "Relative deviation in translational energy too large: $dv"
+ error "Relative deviation in rotational energy too large: $do"
 }
 
 exit 0
