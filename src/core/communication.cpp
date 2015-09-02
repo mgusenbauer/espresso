@@ -132,6 +132,7 @@ static int terminated = 0;
   CB(mpi_bcast_cuda_global_part_vars_slave) \
   CB(mpi_send_dip_slave) \
   CB(mpi_send_dipm_slave) \
+  CB(mpi_send_radius_slave) \
   CB(mpi_send_fluid_slave) \
   CB(mpi_recv_fluid_slave) \
   CB(mpi_local_stress_tensor_slave) \
