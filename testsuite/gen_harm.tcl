@@ -1,4 +1,4 @@
-# Copyright (C) 2010,2012 The ESPResSo project
+# Copyright (C) 2010,2012,2013,2014 The ESPResSo project
 # Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2010 
 #    Max-Planck-Institute for Polymer Research, Theory Group
 #
@@ -28,6 +28,10 @@ puts "------------------------------------------"
 
 ##################################################
 # system setup
+
+source "tests_common.tcl"
+require_feature "ROTATION" off
+
 set file "harm_system.data.gz"
 
 set L 10
@@ -101,7 +105,6 @@ for { set i 0 } { $i < $blbins } { incr i } {
 # compute and write the testcase data
 thermostat off
 velocities 0
-invalidate_system
 integrate 0
 
 # write the data

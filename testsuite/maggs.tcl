@@ -1,4 +1,4 @@
-# Copyright (C) 2010,2011,2012 The ESPResSo project
+# Copyright (C) 2010,2011,2012,2013,2014 The ESPResSo project
 # Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2010 
 #   Max-Planck-Institute for Polymer Research, Theory Group
 #  
@@ -21,7 +21,6 @@ source "tests_common.tcl"
 
 require_feature "ELECTROSTATICS"
 require_feature "LENNARD_JONES"
-require_feature "ADRESS" off
 
 if { [catch {
 
@@ -125,6 +124,10 @@ if { [catch {
     # memd requires domain decompostion with no verlet lists
     cellsystem domain_decomposition -no_verlet_list
     inter coulomb $bjerrum memd $f_mass $mesh
+
+	# check if permittivity of single nodes can be set
+	inter coulomb $bjerrum memd localeps node 1 1 1 dir X eps 80.0
+	inter coulomb $bjerrum memd localeps node 1 1 1 dir X eps 1.0
 
     set act_min_dist [analyze mindist]
 

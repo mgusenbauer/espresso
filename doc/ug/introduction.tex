@@ -1,4 +1,4 @@
-% Copyright (C) 2010,2011,2012 The ESPResSo project
+% Copyright (C) 2010,2011,2012,2013,2014 The ESPResSo project
 % Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2010 
 %    Max-Planck-Institute for Polymer Research, Theory Group
 %  
@@ -111,31 +111,82 @@ then perform the actual productive simulation.
 
 \section{Available simulation methods}
 
-\begin{itemize}
-\item Ensembles: 
-  \begin{itemize} 
-  \item NVE
-  \item NVT
-  \item NpT
-  \end{itemize}
-\item Algorithms for charged systems:
-  \begin{itemize}
-  \item P3M for fully periodic systems
-  \item ELC and MMM-family of algorithms for charged systems with
-    non-periodic boundary conditions
-  \item MEMD (Maggs algorithm)
-  \end{itemize}
-\item Hydrodynamics:
-  \begin{itemize}
-  \item DPD (as a thermostat)
-  \item Lattice-Boltzmann
-  \end{itemize}
-\item Non-equilibrium MD to simulate shear flow
-\item Parallel tempering
-\item Metadynamics
-\item Rigid bodies via virtual sites
-\item AdResS
-\end{itemize}
+\es provides a number of useful methods. The following table shows the
+various methods as well as their status. The table distinguishes
+between the state of the development of a certain feature and the
+state of its use. We distinguish between five levels:
+\begin{description}
+\item[Core] means that the method is part of the core of \es, and that
+  it is extensively developed and used by many people.
+\item[Good] means that the method is developed and used by independent
+  people from different groups.
+\item[Group] means that the method is developed and used in one group.
+\item[Single] means that the method is developed and used by one
+  person only.
+\item[None] means that the method is developed and used by nobody.
+\end{description}
+If you believe that the status of a certain method is wrong, please
+report so to the developers.
+
+\newpage
+\definecolor{supportgrey}{rgb}{0.9,0.9,0.9}
+\rowcolors{1}{supportgrey}{}
+\begin{longtable}{|l|l|l|}
+  \hline
+  \textbf{Feature} & \textbf{Development Status} & \textbf{Usage Status}\\\hline%
+  \multicolumn{3}{|c|}{\textbf{Integrators, Thermostats, Barostats}} \\
+  Velocity-Verlet Integrator          & Core   & Core   \\
+  Langevin Thermostat                 & Core   & Core   \\
+  GHMC Thermostat                     & Single & Single \\
+  DPD Thermostat                      & None   & Good   \\
+  Isotropic NPT                       & None   & Single \\
+  NEMD                                & None   & Group  \\
+  Quarternion Integrator              & None   & Good   \\
+  \multicolumn{3}{|c|}{\textbf{Interactions}} \\
+  Short-range Interactions            & Core   & Core   \\
+  Directional Lennard-Jones           & Single & Single \\
+  Gay-Berne Interaction               & None   & Single \\
+  Constraints                         & Core   & Core   \\
+  Relative Virtual Sites              & Good   & Good   \\
+  Center-of-mass Virtual Sites        & None   & Good   \\
+  RATTLE Rigid Bonds                  & None   & Group  \\
+  \multicolumn{3}{|c|}{\textbf{Coulomb Interaction}} \\
+  P3M                                 & Core   & Core   \\
+  P3M on GPU                          & Single & Single \\
+  Dipolar P3M                         & Group  & Good   \\
+  Ewald on GPU                        & Single & Single \\
+  MMM1D                               & Single & Good   \\
+  MMM2D                               & Single & Good   \\
+  MMM1D on GPU                        & Single & Single \\
+  ELC                                 & Good   & Good   \\
+  MEMD                                & Single & Group  \\
+  ICC*                                & Group  & Group  \\
+  \multicolumn{3}{|c|}{\textbf{Hydrodynamic Interaction}} \\
+  Lattice-Boltzmann                   & Core   & Core   \\
+  Lattice-Boltzmann on GPU            & Group  & Core   \\
+  DPD                                 & None   & Good   \\
+  Shan-Chen Multicomponent Fluid      & Group  & Group  \\
+  Tunable Slip Boundary               & Single & Single \\
+  Stokesian Dynamics                  & Single & Single \\
+  \multicolumn{3}{|c|}{\textbf{Analysis}} \\
+  uwerr                               & None   & Good   \\
+  \multicolumn{3}{|c|}{\textbf{Input/Output}} \\
+  Blockfiles                          & Core   & Core   \\
+  VTF output                          & Core   & Core   \\
+  VTK output                          & Group  & Group  \\
+  PDB output                          & Good   & Good   \\
+  Online visulation with VMD          & Good   & Good   \\
+  \multicolumn{3}{|c|}{\textbf{Miscellaneous}} \\
+  Grand canonical feature             & Single & Single \\
+  Metadynamics                        & Single & Single \\
+  Parallel Tempering                  & Single & Single \\
+  Electrokinetics                     & Group  & Group  \\
+  Object-in-fluid                     & Group  & Group  \\
+  Collision Detection                 & Group  & Group  \\
+  Catalytic Reactions                 & Single & Single \\
+  mbtools package                     & Group  & Group  \\
+  \hline
+\end{longtable}
 
 \section{Basic program structure}
 \label{sec:structure}
@@ -194,25 +245,60 @@ or picoseconds and energies are measured in $\mathrm{kJ/mol}$, \es
 does not do so.
 
 Instead, the length-, time- and energy scales can be freely chosen by
-the user.  A length of $1.0$ can mean a nanometer, an \AA ngstr\"om,
-or a kilometer - depending on the physical system, that the user has
-in mind when he writes his \es-script.  The user can choose the unit
-system that suits the system best.
+the user. Once these three scales are fixed, all remaining units are
+derived from these three basic choices.
 
-When creating particles that are intended to represent a specific type
+The probably most important choice is the length scale.
+A length of $1.0$ can mean a nanometer, an \AA ngstr\"om,
+or a kilometer - depending on the physical system, that the user has
+in mind when he writes his \es-script. When creating particles that are
+intended to represent a specific type
 of atoms, one will probably use a length scale of \AA ngstr\"om.  This
 would mean, that \eg the parameter $\sigma$ of the Lennard-Jones
 interaction between two atoms would be set to twice the van-der-Waals
 radius of the atom in \AA ngstr\"om.  Alternatively, one could set
 $\sigma$ to $2.0$ and measure all lengths in multiples of the
-van-der-Waals radius.
-
-The second choice to be made is the energy (and time-) scale.  One can
+van-der-Waals radius. When simulation colloidal particles,
+which are usually of micrometer size, one will choose their diameter
+(or radius) as basic length scale, which is much larger than the 
+\AA ngstr\"om scale used in atomistic simulations.
+ 
+The second choice to be made is the energy scale.  One can
 for example choose to set the Lennard-Jones parameter $\epsilon$ to
-the energy in $\frac{kJ}{\mathrm{mol}}$.  Then all energies will be
+the energy in $\mathrm{kJ/mol}$.  Then all energies will be
 measured in that unit.  Alternatively, one can choose to set it to
 $1.0$ and measure everything in multiples of the van-der-Waals binding
-energy.
+energy of the respective particles.
+
+The final choice is the time (or mass) scale. By default, \es{} uses a
+reduced mass of 1, so that the mass unit is simply the mass of all
+particles. Combined with the energy and length scale, this is sufficient
+to derive the resulting time scale:
+$$
+[\mathrm{time}] = [\mathrm{length}]\sqrt{\frac{[\mathrm{mass}]}{[\mathrm{energy}]}}.
+$$
+This means, that if you measure lengths in \AA ngstr\"om, energies
+in $k_B T$ at 300\,K and masses in 39.95u, then your time scale is
+$\AA \sqrt{39.95u / k_B T} = 0.40\,\mathrm{ps}$.
+
+On the other hand, if you want a particular time scale, then the mass
+scale can be derived from the time, energy and length scales as
+$$
+[\mathrm{mass}] = [\mathrm{energy}]\frac{[\mathrm{time}]^2}{[\mathrm{length}]^2}.
+$$
+By activating the feature MASSES, you can specify particle masses
+in the chosen unit system.
+
+A special note is due regarding the temperature, which is coupled to
+the energy scale by Boltzmann's constant. However, since \es{} does not
+enforce a particular unit system, we also don't know the numerical value
+of the Boltzmann constant in the current unit system. Therefore, when
+specifying the temperature of a thermostat, you actually do not define
+the temperature, but the value of the thermal energy $k_B T$ in the
+current unit system. For example, if you measure energy in units of
+$\mathrm{kJ/mol}$ and your real temperature should be 300\,K, then you need to
+set the thermostat's effective temperature to
+$k_B 300\, K \mathrm{mol / kJ} = 2.494$.
 
 As long as one remains within the same unit system throughout the
 whole \es-script, there should be no problems.
@@ -262,8 +348,8 @@ in these descriptions:
   type.
 \item \texttt{\alt{\var{alt1} \asep \var{alt2}}} specifies, that one
   of the alternatives \var{alt1} or \var{alt2} can be used.
-\item \texttt{\opt{\var{argument}}} specifies, that the augment
-  \var{argument} is optional, \ie{} it can be omitted.
+\item \texttt{\opt{\var{argument}}} specifies, that the argument
+  \var{argument} is optional, \ie it can be omitted.
 \item When an optional argument or a whole command is marked by a
   superscript label (\fmark{1}), this denotes that the argument can
   only be used, when the corresponding feature (see appendix

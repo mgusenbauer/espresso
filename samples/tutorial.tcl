@@ -4,7 +4,7 @@
 #                                                           #
 #############################################################
 #
-# Copyright (C) 2010,2012 The ESPResSo project
+# Copyright (C) 2010,2012,2013,2014 The ESPResSo project
 # Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2010 
 #   Max-Planck-Institute for Polymer Research, Theory Group
 #  
@@ -208,12 +208,7 @@ if { $vmd == "yes" } {
 # This calls a small tcl script which starts the program    #
 # VMD and opens a socket connection between ESPResSo and    #
 # VMD.                                                      #
-    prepare_vmd_connection tutorial 3000
-
-# Just wait a moment until VMD has started.                 #
-# The 'exec' command is quite useful since with that you can#
-# call any other program from within your simulation script.#
-    exec sleep 4
+    prepare_vmd_connection tutorial start wait 3000
 
 # The additional command imd steers the socket connection   #
 # to VMD, e.g. sending the actual coordinates               #
@@ -357,7 +352,10 @@ close $obs
 # Uncommenting the following two lines will show
 # you a plot of the rg values
 #plotObs "rg.dat" { 1:2 } labels { "time" "rg" } out "rg"
+# The 'exec' command is quite useful since with that you can#
+# call any other program from within your simulation script.#
 #exec gv rg.ps
+
 
 #############################################################
 #                                                           #

@@ -1,4 +1,4 @@
-# Copyright (C) 2011,2012 The ESPResSo project
+# Copyright (C) 2011,2012,2013,2014 The ESPResSo project
 #  
 # This file is part of ESPResSo.
 #  
@@ -23,6 +23,7 @@ require_feature "ROTATIONAL_INERTIA"
 # Cchecks if every degree of freedom has 1/2 kT of energy, even when
 # mass and inertia tensor are active
 
+setmd box_l 10 10 10 
 set kT 1.5
 set halfkT 0.75
 thermostat langevin $kT 1
@@ -31,11 +32,11 @@ thermostat langevin $kT 1
 setmd skin 1.0
 setmd time_step 0.01
 
-set n 500
-set mass 200
-set j1 300
-set j2 400
-set j3 500
+set n 100
+set mass 0.8
+set j1 60
+set j2 80
+set j3 100
 for {set i 0} {$i<$n} {incr i} {
   part $i pos 0 0 0 rinertia $j1 $j2 $j3 mass $mass
 }
@@ -48,9 +49,9 @@ set oy2 0.
 set oz2 0.
 
 
-set loops 3
+set loops 250
 puts "Thermalizing..."
-integrate 300
+integrate 10000
 puts "Measuring..."
 
 for {set i 0} {$i <$loops} {incr i} {
@@ -58,7 +59,7 @@ for {set i 0} {$i <$loops} {incr i} {
  # Get kinetic energy in each degree of freedom for all particles
  for {set p 0} {$p <$n} {incr p} {
   set v [part $p print v]
-  set o [part $p print omega]
+  set o [part $p print omega_lab]
   set ox2 [expr $ox2 +pow([lindex $o 0],2)]
   set oy2 [expr $oy2 +pow([lindex $o 1],2)]
   set oz2 [expr $oz2 +pow([lindex $o 2],2)]
@@ -90,7 +91,7 @@ if { abs($dv) > $tolerance } {
  error "Relative deviation in translational energy too large: $dv"
 }
 if { abs($do) > $tolerance } {
- error "Relative deviation in translational energy too large: $dv"
+ error "Relative deviation in rotational energy too large: $do"
 }
 
 exit 0

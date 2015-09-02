@@ -1,4 +1,4 @@
-# Copyright (C) 2010,2011,2012 The ESPResSo project
+# Copyright (C) 2010,2011,2012,2013,2014 The ESPResSo project
 # Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2010 
 #   Max-Planck-Institute for Polymer Research, Theory Group
 #  
@@ -49,7 +49,7 @@ proc read_data {file} {
 proc write_data {file} {
     set f [open $file "w"]
     blockfile $f write variable box_l
-    blockfile $f write particles {id pos v omega} 
+    blockfile $f write particles {id pos v omega_lab} 
     close $f
 }
 
@@ -69,6 +69,7 @@ if { [catch {
     # generate some particles
     set box_l 10
     setmd box_l $box_l $box_l $box_l
+    setmd time_step 0.01
     for {set i 0} {$i < 100} {incr i} {
     	part $i pos [expr rand()*$box_l] [expr rand()*$box_l] [expr rand()*$box_l]
     }

@@ -1,4 +1,4 @@
-% Copyright (C) 2010,2011,2012 The ESPResSo project
+% Copyright (C) 2010,2011,2012,2013,2014 The ESPResSo project
 % Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2010 
 %  Max-Planck-Institute for Polymer Research, Theory Group
 %  
@@ -19,6 +19,70 @@
 %
 \chapter{Input / Output}
 \label{cha:io}
+
+\section{No generic checkpointing!}
+\label{sec:checkpointing}
+
+One of the most asked-for feature that seems to be missing in \es is
+\emph{checkpointing}, \ie a simple way to tell \es to store and
+restore the current state of the simulation, and to be able to write
+this state to or read it from a file. This would be most useful to be
+able to restart a simulation from a specific point in time.
+
+Unfortunately, it is impossible to provide a simple command (\eg
+\texttt{checkpoint}), out of two reasons.  The main reason is that \es
+has no way to determine what information constitutes the actual state
+of the simulation.  On the one hand, \es scripts sometimes use
+Tcl-variables that contain essential information about a simulation,
+\eg the stored values of an observable that was computed in previous
+time steps, counters, etc.  These would have to be contained in a
+checkpoint.  However, not all Tcl-variables are of interest. For
+example, Tcl has a number of automatically set variables that contain
+information about the hostname, the machine type, etc. These variables
+should most probably \emph{not} be included the simulation state.  \es
+has no way to distinguish between these variables.  On the other hand,
+the \es core has a number of internal variables, \eg the particle
+coordinates.  While most of these are probably good candidates for
+being included into a checkpoint, this is not necessarily so.  For
+example, when you have particles in your system that have fixed
+coordinates, should these be stored in a checkpoint, or not?  If the
+system contains mostly fixed particles and only very few moving
+particles, this would increase the memory size of a checkpoint
+needlessly. And what about the interactions in the system, or the
+bonds? Should these be stored in a checkpoint, or are they generated
+by the script?
+
+Another problem with a generic checkpoint would be the control flow of
+the script. In principle, the checkpoint would have to store where in
+the script the checkpointing function was called to be able to return
+there.  All this is even further complicated by the fact that \es is
+running in parallel.
+
+Instead, in \es, the user has to specify what information needs to be
+saved to a file to be able to restore the simulation state.  The
+\texttt{blockfile} and \texttt{writemd} commands help you to do that.
+\texttt{blockfile} writes text files.  When floating point numbers are
+stored in such files (\eg the particle positions), there is only a
+limited precision.  Therefore, it is not possible to bitwise reproduce
+a simulation state using this function. When you need bitwise
+reproducibility, you will have to use the command \lit{writemd}, which
+stores positions, forces and velocities in binary format.  Note that
+there is no command to write other MD parameters like time step or
+interactions in binary format. You should restore these using exactly
+the same Tcl command that you used to create them.
+
+Finally, there is one more complication: random forces are computed
+in the order the particles are stored in memory. This order usually
+differs after reading a blockfile back, since the particles are
+stored in consecutive identity order. In memory, they are usually
+not in a specific order. Therefore, you need to use \texttt{sort_particles}
+after writing a blockfile that you want to use for checkpointing, so
+that the particles are resorted to the same consecutive order. Note
+that this does not change physics, just the order the random numbers
+are applied.
+
+When using an LB fluid, you need to also write out the fluid nodes,
+see the \texttt{lbfluid} command for further details.
 
 \section{\texttt{blockfile}: Using the structured file format}
 \label{sec:structured-file-format}
@@ -74,7 +138,7 @@ the Tcl variable \lit{blockfile_variable_blacklist} are ignored.
   \variant{1} blockfile \var{channel} write tclvariable \{
   \var{varname1} \var{varname2} \dots \}
   \variant{2} blockfile \var{channel} write tclvariable all
-  \variant{2} blockfile \var{channel} write tclvariable reallyall
+  \variant{3} blockfile \var{channel} write tclvariable reallyall
 \end{essyntax}
 
 These commands will write Tcl global variables to \var{channel}.
@@ -101,13 +165,18 @@ even write those.
   \variant{3} blockfile \var{channel} write interactions
 \end{essyntax}
 
-\todo{How is a Tcl-range specified?}  Variant \variant{1} writes
+Variant \variant{1} writes
 particle information in a standardized format to \var{channel}.
 \var{what} can be any list of parameters that can be specified in
 \codebox{part \var{part_id} print}, except for \lit{bonds}.  Note that
 \lit{id} and \lit{pos} will automatically be added if missing.
-\var{range} is a Tcl list of ranges which particles to write.  The
-keyword \keyword{all} denotes all known particles.
+\var{range} is a Tcl list of ranges which particles to write. A range
+is defined as \textit{start}-\textit{stop}, where \textit{start} and
+\textit{stop} are particle identities. \textit{stop} can also be the
+string ``end'', denoting the highest used particle identity. Thus
+\texttt{"{} 0-5 10-end"{}} are all particles with the exception of
+particles 6-9.  The keyword \keyword{all} denotes all known particles,
+\ie{} is eqivalent to \texttt{"0-end"{}}).
 
 Variant \variant{2} writes the bond information in a standardized
 format to \var{channel}. The involved particles and bond types must
@@ -184,10 +253,10 @@ to the file \lit{data.dat}.
 \begin{essyntax}
   \variant{1} blockfile \var{channel} read start 
   \variant{2} blockfile \var{channel} read toend 
-  \variant{3} blockfile \var{channel} read \alt{particles \asep
+  \variant{3} blockfile \var{channel} read auto 
+  \variant{4} blockfile \var{channel} read \alt{particles \asep
     interactions \asep bonds \asep variable \asep seed \asep random
     \asep bitrandom \asep configs}
-  \variant{4} blockfile \var{channel} read auto 
 \end{essyntax}
 
 Variants \variant{1} and \variant{2} are the low-level block-reading
@@ -195,11 +264,8 @@ commands. Variant \variant{1} reads the start part of a block and
 returns the block title, while variant \variant{2} reads the block
 data and returns it.
 
-\todo{Needs to be rewritten!}
-Variants \variant{3} and \variant{4} read whole blocks.  Variant
-\variant{3} reads the beginning of one block, checks wether it
-contains data of the given type and reads it. Variant \variant{4}
-reads in one block and does the following:
+Variants \variant{3} and \variant{4} read whole blocks.
+Variant \variant{3} reads in one block and does the following:
 \begin{enumerate}
 \item if a procedure \keyword{blockfile_read_auto_\var{tag}} exists,
   this procedure takes over (\var{tag} is the first expression in the
@@ -216,7 +282,7 @@ reads in one block and does the following:
 \item if the file is at the end, it returns \lit{eof}
 \end{enumerate}
 
-Variant \variant{3} checks for a block with tag \var{block} and then
+Variant \variant{4} checks for a block with tag \var{block} and then
 again executes the corresponding \lit{blockfile_read_auto_\var{tag}},
 if it exists.
 
@@ -269,121 +335,30 @@ close $in
 This is basically all you need to restore the information in the
 blockfile, overwriting the current settings in \es.
 
-\section{Checkpointing (deprecated)}
-\newescommand[checkpoint-set]{checkpoint_set}
-\newescommand[checkpoint-read]{checkpoint_read}
+\section{Writing and reading binary files}
+\index{binary I/O}
 
-\warning{The functions in this section are deprecated and will be
-  removed in some future version.  They might still usable in your
-  case, but be aware that if you use newer features in your
-  simulation, not all necessary parameters might be saved and restored
-  when writing a standard checkpoint. Try to use blockfiles instead
-  and think about what variables need to be stored. }
-
-The following procedures may be used to save and restore checkpoints
-to minimize the hassel involved when your simulation crashes after
-long runs.
-
-\subsection{Creating a checkpoint (deprecated)}
-
+Binary files are written using the command
 \begin{essyntax}
-  checkpoint_set \var{destination} 
-  \opt{\var{num_configs}
-    \opt{\var{tclvar} 
-      \opt{\var{iaflag}
-        \opt{\var{varflag}
-          \opt{\var{ranflag}}}}}}
+  writemd \var{channel} \opt{posx|posy|posz|vx|vy|vz|fx|fy|fz}\dots
 \end{essyntax}
-Creates a checkpoint with path/filename \var{destination} (compressed
-if \var{destination} ends with '.gz'), saving the last \var{\# of
-  configs} which have been appended using analyze\_append (defaults to
-'all'), adds all tcl-embedded variables specified in the tcl-list
-\var{tclvar} (defaults to '-'), all interactions (The inter command) /
-\es{}-variables (The setmd command) / random-number-generator
-informations (The t\_random command etc.) unless their respective
-flags \var{iaflag} / \var{varflag} / \var{ranflag} are set to '-'; you
-may however choose to only include certain \es-variables (The setmd
-command) by providing their names as a tcl-list in place of
-\var{varflag}.  When you're reading this, tcl\_checkpoint\_set will be
-using the invalidate\_system command automatically; therefore
-continuing an integration after setting a checkpoint or restarting it
-there by reading one should make absolutely no difference anymore,
-since the current state of the random number generator(s) is/are
-completely (re)stored to (from) the checkpoint and the integrator is
-forced to re-init the forces (incl. thermostat) no matter what.  It
-may be a good choice to use filenames such as
-'kremer\_checkpoint.[eval format 05 \$integration\_step]' or
-'kremer\_checkpoint.029.gz' for \var{destination} because the command
-stores all the names of checkpoints set to a file derived from
-\var{destination} by replacing the very last suffix plus maybe '.gz'
-with '.chk' (in the above examples: 'kremer\_checkpoint.chk') which is
-used by tcl\_checkpoint\_read to restore all checkpoints.  Although
-'checkpoint\_set \var{destination}' without the optional parameters
-will store a complete checkpoint sufficient for re-starting the
-simulation later on, you may run out of memory while trying to save a
-huge number of timesteps appended (analyze\_append). Hence one should
-rather only save those configurations newly added since the last
-checkpoint, i.e. if a checkpoint is created every 100,000 steps while
-a configuration is appended every 500 steps you may want to use
-'checkpoint\_set \var{destination} 200' which saves the current
-configuration, all interactions, all bonds, the precise state of the
-random number generator(s), and the last 200 entries appended to
-configs since the last checkpoint was created. Since
-tcl\_checkpoint\_read reads in successively the checkpoints given in
-the '.chk'-file, the configs-array will nevertheless be completely
-restored to its original state although each checkpoint-file contains
-only a fraction of the whole array.
-
-\subsection{Reading a checkpoint (deprecated)}
+This will write out particle data to the Tcl channel \var{channel} for
+all particles in binary format. Apart from the mandatory particle id,
+only limited information can be stored. The coordinates (\keyword{posx},
+\keyword{posy} and \keyword{posz}), velocities (\keyword{vx}, \keyword{vy} and
+\keyword{vz}) and forces (\keyword{fx}, \keyword{fy} and \keyword{fz}). Other
+information should be stored in a blockfile or reconstructed
+differently. Note that since both \texttt{blockfile} and
+\texttt{writemd} are using a Tcl channel, it is actually possible to
+mix them, so that you can write a single checkpoint file. However, the
+\texttt{blockfile read auto} mechanism cannot handle the binary
+section, thus you need to read this section manually. Reading of
+binary particle data happens through
 \begin{essyntax}
-  checkpoint_read \var{source}
+  readmd \var{channel}
 \end{essyntax}
-Restores all the checkpoints whose filenames are listed in
-\var{source} in the order given therein, consequently putting the
-simulation into the state it was in when \lit{checkpoint_set} was
-called. If parts of the configs array are given in the files listed in
-\var{source}, it is assumed that they represent a fraction of the
-whole array.
-
-\subsection{Writing a checkpoint 2 (deprecated)}
-\begin{essyntax}
-  \variant{1} polyBlockWrite \var{path} 
-  \alt{\var{param\_list} \asep all} \var{part\_list}
-\end{essyntax}
-\todo{Title!}
-\todo{Clean up. Describe arguments in argument env.}  
-
-Variant \variant{1} writes out the current \es-configuration as a
-blockfile, including parameters, interactions, particles, and bonds.
-\var{path} should contain the filename including the full path to it.
-\var{param_list} gives a tcl-list of the \es-parameters to be saved;
-if an empty list \verb!{}! is supplied, no parameters are written.  If
-\lit{all}, all global variables are written. This defaults to
-\lit{all}. \var{part_list} gives a list of the particle-properties
-(out of \lit{pos}, \lit{type}, \lit{q}, \lit{v}, \lit{f}) to be saved
-to disk; if an empty list \verb!{}! is provided, no particles, no
-bonds, and no interactions are written.  Defaults to all particle
-properties.  If the suffix of \var{path} is \lit{.gz}, the output will
-be compressed.
-
-\subsection{Writing a checkpoint 3 (deprecated)}
-\begin{essyntax}
-  \variant{2} polyBlockWriteAll \var{destination} 
-  \optlong{\alt{\var{tclvar} \asep all} 
-    \optlong{\alt{\var{whatever} \asep -}
-      \opt{\alt{state \asep seed \asep -}}}}
-  
-\end{essyntax}
-\todo{Title!}
-\todo{Clean up. Describe arguments in argument env.}  
-
-Variant \variant{2} saves all current interactions, particles, bonds,
-and global variables to \var{destination}, but in addition it also
-saves the tcl-variables specified by \var{tclvar} (if \lit{all}, then
-all the variables in the active script are stored), it saves all the
-stored configurations if \var{whatever} is whatever, but \lit{-}.
-Furthermore, it saves the state (\lit{state}) or the seed (\lit{seed})
-of the random number generator.
+For the exact format of the written binary sequence, see
+\texttt{src/tcl/binary_file_tcl.cpp}.
 
 \section{Writing VTF files}
 \label{sec:vtf}
@@ -447,7 +422,6 @@ timesteps. This is a restriction of VMD itself, not of the format.
   \opt{\alt{short \asep verbose}}
   \opt{radius \alt{\var{radii} \asep auto}} 
   \opt{typedesc \var{typedesc}}
-  \opt{ignore_charges}
 \end{essyntax}
 Writes a structure block describing the system's structure to the
 channel given by \var{channelId}. \var{channelId} must be an
@@ -480,12 +454,6 @@ contains a trajectory of a whole simulation.
   is an atom name and \textit{type} is the type id.
   \minisec{Example} 
   \verb!writevsf $file typedesc {0 "name colloid" 1 "name pe"}!
-\item[\opt{ignore_charges}]
-  this is a temporary workaround for a bug in the VTF reader of VMD,
-  which cannot handle multiple atom sections for the same
-  atom. However, charges are written out per-atom, so that VMD forgets
-  about atom types and radii. If you don't need the charges, you can
-  switch them off by this flat, making the other settings work again.
 \end{arguments}
 
 \subsection{\texttt{writevcf}: Writing  the coordinates}
@@ -572,7 +540,7 @@ filenames including a running index (\texttt{data_0.vtk},
   size).
 \end{arguments}
 
-\section{Writing PDB/PSF files}
+\section{Reading and Writing PDB/PSF files}
 The PDB (Brookhaven Protein DataBase) format is a widely used format
 for describing atomistic configurations. PSF is a format that is used
 to describe the topology of a PDB file. 
@@ -628,6 +596,52 @@ espresso. If you wish to shift particles prior to folding then supply
 the optional shift information. \var{shift} should be a three member
 tcl list consisting of x, y, and z shifts respectively and each number
 should be a floating point (ie with decimal point).
+
+\subsection{\lit{readpdb}: Reading the coordinates and interactions}
+\newescommand{readpdb}
+
+\begin{essyntax}
+  readpdb pdb_file \var{pdbfile} type \var{type} first_id \var{firstid} \opt{
+  itp_file \var{itpfile} first_type \var{fisttype}} \\
+  \opt{\require{1}{lj_with \var{othertype} \var{epsilon} \var{sigma}}}
+  \opt{\require{1}{lj_rel_cutoff \var{cutoff}} } \opt{fit_to_box}
+\begin{features}
+  \required[1]{LENNARD_JONES}
+\end{features}
+\end{essyntax}
+Reads the positions and possibly charges, types and Lennard-Jones interactions
+from the file \var{pdbfile} and a corresponding Gromacs topology file \var{itpfile}.
+The topology file must contain the \verb|atoms| and \verb|atomtypes| sections,
+it may be necessary to use the Gromacs preprocessor to obtain a complete file
+from a system configuration and a force field.
+
+Any offset of the particle positions if removed, such that the lower left
+corner bounding box of the particles is in the origin. If \verb|fit_to_box| is
+given, the box size if increased to hold the particles if necessary. If it is
+not set and the particles do not fit into the box, the behavior is undefined.
+
+\var{type} sets the particle type for the added particles. 
+If there is a topology file give that contains a types for the particles, 
+the particles get types by the order in the topology file plus \var{firstype}.
+If the corresponding type in the topology file has a charge, it is used,
+otherwise the particle charge defaults to zero.
+
+The particles get consecutive id's in the order of the pdb file, starting at
+\var{firstid}. Please be aware that existing particles get overwritten by
+values from the file.
+
+The \verb|lj_with| section produces Lennard-Jones interactions between the
+type \var{othertype} and the types defined by the topology file. The
+interaction parameters are calculated as $\epsilon_{\text{othertype},j} =
+\sqrt{\epsilon_{\text{othertype}} \epsilon_j}$ and $\sigma_{\text{othertype},j}
+=\frac{1}{2}\left( \sigma_{\text{othertype}} + \sigma_j \right)$, where $j$
+runs over the atomtypes defined in the topology file. This corresponds to the
+combination rule 2 of Gromacs. There may be multiple such sections.
+The cutoff is determined by \var{cutoff} as $\text{cutoff}\times \sigma_{ij}$ in a
+relative fashion. The potential is shifted so that it vanishes at the cutoff.
+The command returns the number of particles that were successfully added.
+
+Reading bonded interactions and dihedrals is currently not supported.
 
 \section{Online-visualisation with VMD}
 \label{sec:IMD}
@@ -706,8 +720,12 @@ the VMD Quick Help.
 \newescommand[prepare-vmd-connection]{prepare_vmd_connection}
 
 \begin{essyntax}
-prepare_vmd_connection 
-\opt{\var{filename} \opt{\var{wait} \opt{\var{start}}} \opt{\var{constraints}}}
+\variant{1} prepare_vmd_connection 
+\var{filename} \opt{start} \opt{wait \var{wait}} \opt{localhost}
+\opt{constraints}
+...
+\variant{2} prepare_vmd_connection 
+\opt{\var{filename} \opt{\var{wait} \opt{\var{start} \opt{\var{constraints}}}}}
 \end{essyntax}
 
 To reduce the effort involved in setting up the IMD connection,
@@ -719,26 +737,117 @@ coloring the molecules, bonds and counterions appropriately, rotating
 your viewpoint, and connecting your system to the visualization
 server.
 
-If \var{constraints} is not 0, then the command will create graphics
-primitives in VMD that represent some of the spatial constraints
-(sphere, rhomboid and cylinder at present).
+If the option \opt{constraints} is given, then the command will create
+graphics primitives in VMD that represent some of the spatial
+constraints (sphere, rhomboid and cylinder at present).
 
-When \var{wait} is provided, \es will wait for \var{wait} seconds for
-VMD to connect, and only continue after this time has passed or VMD
-has connected. If \var{start} is 1 (the default), it will
-automatically try to start VMD and connect to the \es simulation,
-otherwise it writes a corresponding script to the file
-\lit{\var{filename}.vmd_start.script}, that can be executed via VMD,
-either from the command line
+If \opt{start} is given, the command will automatically try to start VMD and connect it to the \es{} simulation.  Otherwise it only writes the VMD
+setup script \lit{\var{filename}.vmd_start.script}. You can use this script later to connect to the \es{} simulation by running either
 \begin{code}
   vmd -e vmd_start.script
 \end{code}
-or from the Tcl console of VMD with the command
+or by running
 \begin{code}
-  play "vmd\_start.script"
+  source "vmd\_start.script"
 \end{code}
+at VMD's Tcl console. If you choose to not start VMD automatically,
+\lit{prepare_vmd_connection} puts the hostname into the VMD script, so
+that you can start it from any computer. However, some more recent Linux
+distributions block any incoming transfer even from the computer itself,
+if it does not come from localhost. If you encounter problems to connect
+to VMD on the very same computer, try the \opt{localhost} option, which
+will enforce to use the hostname \lit{localhost}. Note that the \opt{start} option implies the \opt{localhost} option, since VMD is
+necessarily started from the same computer.
 
-\section{Errorhandling}
+If the option \opt{wait} is provided, then the command waits for at most
+\var{wait} seconds for VMD to connect. Since VMD usually takes a while
+to start, it is usually a good idea to combine the \opt{start} option with a waiting time of 100, so a bit less than a minute.
+
+All remaining parameters are passed to the \lit{writevsf} that is used
+to setup the system, so that you can specify the sizes of particles etc.
+
+\lit{prepare_vmd_connection} also supports an older, deprecated syntax (variant 2) with limited functionality. This syntax uses fixed position
+parameters and boolean values for \opt{start} and \opt{constraints}, as
+described above.
+
+\section{Writing H5MD-files}
+For large amounts of data it's a good idea to store it in the hdf5 (H5MD is
+based on hdf5) file format
+(see \url{https://www.hdfgroup.org/} for details). \es currently supports
+some basic functions for writing simulation data to H5MD files.
+\subsection{\keyword{h5md_init}: Initialize a H5MD data file}
+
+\begin{essyntax}
+h5md_init
+\var{/where/to/store/data/file}
+    \begin{features}
+    \required{H5MD}
+    \end{features}
+\end{essyntax}
+The \codebox{h5md_init} command initializes the H5MD file and creates 
+groups and datasets according to the conventions of H5MD (see
+\url{http://nongnu.org/h5md/}). If a H5MD file already exists at the given
+path it will be opened and you can append data it.
+
+\subsection{\keyword{h5md_write_positions}: Write particle positions to H5MD
+file}
+
+\begin{essyntax}
+h5md_write_positions
+\opt{folded}
+  \begin{features}
+  \required{H5MD}
+  \end{features}
+\end{essyntax}
+Writes the positions of all particles to the dataset which was previously 
+initialized by \texttt{h5md_init}.
+
+\subsection{\keyword{h5md_write_velocities}: Write particle velocities to H5MD
+file}
+
+\begin{essyntax}
+h5md_write_velocities
+  \begin{features}
+  \required{H5MD}
+  \end{features}
+\end{essyntax}
+Writes the velocities of all particles to the dataset which was previously 
+initialized by \texttt{h5md_init}.
+
+\subsection{\keyword{h5md_observable1D_init}: Initialize a user-defined H5MD
+observable}
+
+\begin{essyntax}
+h5md_observable1D_init \var{name\_of\_observable}
+  \begin{features}
+  \required{H5MD}
+  \end{features}
+\end{essyntax}
+Initializes an observable dataset with given name in the H5MD file previously
+initialized by \texttt{h5md_init}.
+
+\subsection{\keyword{h5md_observable1D_write}: Write to a user-defined H5MD
+dataset}
+
+\begin{essyntax}
+h5md_observable1D_write \var{name\_of\_observable} \var{value}
+  \begin{features}
+  \required{H5MD}
+  \end{features}
+\end{essyntax}
+Writes \texttt{value} to a user-defined observable dataset with given name.
+
+\subsection{\keyword{h5md_close}: Close H5MD file}
+
+\begin{essyntax}
+h5md_close
+  \begin{features}
+  \required{H5MD}
+  \end{features}
+\end{essyntax}
+Closes the H5MD data file.
+
+\section{Error handling}
 Errors in the parameters are detected as early as possible, and
 hopefully self-explanatory error messages returned without any changes
 to the data in the internal data of \es. This include errors such as
