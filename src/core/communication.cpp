@@ -990,6 +990,41 @@ void mpi_send_dipm_slave(int pnode, int part)
 #endif
 }
 
+/********************* REQ_SET_RADIUS ********/
+
+void mpi_send_radius(int pnode, int part, double radius)
+{
+#ifdef EXCLUDED_VOLUME_FORCE
+  mpi_call(mpi_send_radius_slave, pnode, part);
+
+  if (pnode == this_node) {
+    Particle *p = local_particles[part];
+    p->p.radius = radius;
+  }
+  else {
+    MPI_Send(&radius, 1, MPI_DOUBLE, pnode, SOME_TAG, comm_cart);
+  }
+
+  on_particle_change();
+#endif
+}
+
+
+
+void mpi_send_radius_slave(int pnode, int part)
+{
+#ifdef EXCLUDED_VOLUME_FORCE
+  if (pnode == this_node) {
+    Particle *p = local_particles[part];
+        MPI_Recv(&p->p.radius, 1, MPI_DOUBLE, 0, SOME_TAG,
+	     comm_cart, MPI_STATUS_IGNORE);
+  }
+
+  on_particle_change();
+#endif
+}
+
+
 /********************* REQ_SET_ISVI ********/
 
 void mpi_send_virtual(int pnode, int part, int isVirtual)

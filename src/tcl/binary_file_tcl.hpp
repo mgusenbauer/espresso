@@ -100,6 +100,8 @@ struct MDHeader {
  #define MZ    14
 /** Row contains the solvation free energies (SHANCHEN) */
 #define SOLVATION 15
+/** Row contains the radius of the particle used for EXCLUDED_VOLUME_FORCE. */
+#define RADIUS 16
 
 /*@}*/
 

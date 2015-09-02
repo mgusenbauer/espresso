@@ -200,6 +200,14 @@ void tclcommand_part_print_dip(Particle *part, char *buffer, Tcl_Interp *interp)
 }
 #endif
 
+#ifdef EXCLUDED_VOLUME_FORCE
+void tclcommand_part_print_radius(Particle *part, char *buffer, Tcl_Interp *interp)
+{
+  Tcl_PrintDouble(interp, part->p.radius, buffer);
+  Tcl_AppendResult(interp, buffer, " ", (char *)NULL);
+}
+#endif
+
 #ifdef VIRTUAL_SITES
 void tclcommand_part_print_virtual(Particle *part, char *buffer, Tcl_Interp *interp)
 {
@@ -608,6 +616,12 @@ int tclprint_to_result_Particle(Tcl_Interp *interp, int part_num)
 
 #endif
 
+#ifdef EXCLUDED_VOLUME_FORCE
+  /* print information about particle radius */
+  Tcl_AppendResult(interp, " radius ", (char *)NULL);
+  tclcommand_part_print_radius(&part, buffer, interp);
+#endif
+
 #ifdef VIRTUAL_SITES
   /* print information about isVirtual */
   Tcl_AppendResult(interp, " virtual ", (char *)NULL);
@@ -828,6 +842,13 @@ int tclcommand_part_parse_print(Tcl_Interp *interp, int argc, char **argv,
       tclcommand_part_print_dip(&part, buffer, interp);
     else if (ARG0_IS_S("dipm")) {
       Tcl_PrintDouble(interp, part.p.dipm, buffer);
+      Tcl_AppendResult(interp, buffer, (char *)NULL);
+    }
+#endif
+
+#ifdef EXCLUDED_VOLUME_FORCE
+    else if (ARG0_IS_S("radius")) {
+      Tcl_PrintDouble(interp, part.p.radius, buffer);
       Tcl_AppendResult(interp, buffer, (char *)NULL);
     }
 #endif
@@ -1142,6 +1163,33 @@ int tclcommand_part_parse_dip(Tcl_Interp *interp, int argc, char **argv,
   return TCL_OK;
 }
 
+#endif
+
+#ifdef EXCLUDED_VOLUME_FORCE
+int tclcommand_part_parse_radius(Tcl_Interp *interp, int argc, char **argv,
+		 int part_num, int * change)
+{
+    double radius;
+
+    *change = 1;
+
+    if (argc < 1) {
+      Tcl_AppendResult(interp, "radius requires 1 argument", (char *) NULL);
+      return TCL_ERROR;
+    }
+
+    /* set radius */
+    if (! ARG0_IS_D(radius))
+      return TCL_ERROR;
+
+    if (set_particle_radius(part_num, radius) == TCL_ERROR) {
+      Tcl_AppendResult(interp, "set particle position first", (char *)NULL);
+
+      return TCL_ERROR;
+    }
+
+    return TCL_OK;
+}
 #endif
 
 #ifdef VIRTUAL_SITES
@@ -2523,6 +2571,12 @@ int tclcommand_part_parse_cmd(Tcl_Interp *interp, int argc, char **argv,
       dipm_set = 1;
     }
 
+#endif
+
+#ifdef EXCLUDED_VOLUME_FORCE
+	else if (ARG0_IS_S("radius")) {
+      err = tclcommand_part_parse_radius(interp, argc-1, argv+1, part_num, &change);
+    }
 #endif
 
 #ifdef VIRTUAL_SITES

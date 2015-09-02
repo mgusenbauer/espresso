@@ -36,6 +36,12 @@
 
 #ifdef DIPOLES
 
+#ifdef EXCLUDED_VOLUME_FORCE
+double evf_A = -1.0;
+double evf_xi = -1.0;
+double evf_cut = -1.0;
+#endif
+
 // Calculates dipolar energy and/or force between two particles
 double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 {
@@ -45,7 +51,10 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 #endif
   double  ffx,ffy,ffz;
   double dr[3];
- 
+
+#ifdef EXCLUDED_VOLUME_FORCE
+  double r12,ff, m1, m2,mm,aa,aa2,aa4,e, fffx,fffy,fffz, ffff[3],ffff2,ffff3,fi[3],fe[3],fffffi,fffffe, multiplier;
+#endif
 	
   // Distance between particles
   get_mi_vector(dr,p1->r.p,p2->r.p);
@@ -78,6 +87,106 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
     ffx=ab*dr[0]+cc*p1->r.dip[0]+d*p2->r.dip[0];
     ffy=ab*dr[1]+cc*p1->r.dip[1]+d*p2->r.dip[1];
     ffz=ab*dr[2]+cc*p1->r.dip[2]+d*p2->r.dip[2];
+
+#ifdef EXCLUDED_VOLUME_FORCE
+    r12 = p1->p.radius + p2->p.radius;
+    if(r < (evf_cut + r12)){
+		m=p1->p.dipm;
+		m2=m*m;
+
+		aa2=r12*r12;
+		aa4=aa2*aa2;
+
+		ff = evf_A * m2 / aa4;
+		e = exp(- evf_xi * (r / r12 - 1));
+
+		ffx += ff * dr[0] * e;
+		ffy += ff * dr[1] * e;
+		ffz += ff * dr[2] * e;
+	}
+    #endif
+    */
+    // EVF modified according to different particle interactions than krishnamurthy
+    /*#ifdef EXCLUDED_VOLUME_FORCE
+    r12 = p1->p.radius + p2->p.radius;
+    if(r < (evf_cut + r12)){
+		//m1=p1->p.dipm;
+		//m2=p2->p.dipm;
+		//mm=m1*m2;
+
+		aa2=r12*r12;
+		aa4=aa2*aa2;
+
+		ff = 1.0e-7*evf_A * 3.0 * pe1 / (aa4*rr); // betrag von r kommt von der umrechnung vom vektor r zum einheitsvector   dr = r er
+		e = exp(- evf_xi * (r / r12 - 1.0));
+
+		//printf("dawaanr dist = %e ; fi = %e, fe = %e, sum %e\n", r, ffy, ff * dr[1] * e, ffy + ff * dr[1] * e);
+		//printf("dawaanr dist = %e, fi = %e %e %e, fe = %e %e %e\n", r, ffx, ffy, ffz,ff * dr[0] * e,ff * dr[1] * e,ff * dr[2] * e);
+		fffx = ff * dr[0] * e;
+		fffy = ff * dr[1] * e;
+		fffz = ff * dr[2] * e;
+
+		fe[0]=fffx;
+		fe[1]=fffy;
+		fe[2]=fffz;
+
+		//get_mi_vector(ffff,fe,fi);
+		//ffff2=ffff[0]*ffff[0]+ffff[1]*ffff[1]+ffff[2]*ffff[2];
+		//ffff3=sqrt(ffff2);
+
+		//fffffe=sqrt(fffx*fffx+fffy*fffy+fffz*fffz);
+		//if(fffffi>fffffe){
+		//	if((int)(sim_time*10000)%300==0)printf("|fe| %2e |sum i+e| %.2e\n", fffffe,1.0*sqrt((ffx+fffx)*(ffx+fffx)+(ffy+fffy)*(ffy+fffy)+(ffz+fffz)*(ffz+fffz)));
+		//}else{
+		//	if((int)(sim_time*10000)%300==0)printf("|fe| %2e |sum i+e| %.2e\n", fffffe,-1.0*sqrt((ffx+fffx)*(ffx+fffx)+(ffy+fffy)*(ffy+fffy)+(ffz+fffz)*(ffz+fffz)));
+		//}
+
+		ffx += fffx;
+		ffy += fffy;
+		ffz += fffz;
+		//if((int)(sim_time*1000)%300==0)printf("fe = %.2e %.2e %.2e |fe| %2e sum %.2e %.2e %.2e |sum| %.2e\n", fffx, fffy, fffz, sqrt(fffx*fffx+fffy*fffy+fffz*fffz),ffx,ffy,ffz,sqrt(ffx*ffx+ffy*ffy+ffz*ffz));
+
+
+		//printf("fe = %e\n", ff * dr[1] * e);
+	}
+    #endif
+    */
+
+    // adaptive EVF
+
+    #ifdef EXCLUDED_VOLUME_FORCE
+    r12 = p1->p.radius + p2->p.radius;
+    if(r < (evf_cut + r12)){
+		multiplier=1.0-((r-r12)/evf_cut);
+		//if(multiplier>0.95 && multiplier < 1.05) multiplier = 1.0;
+
+		//if((int)(sim_time*100)%300==0)printf("%d d = %.2e ; fi = %.2e %.2e %.2e |fi| %.2e; multi %.2e fe = %.2e %.2e %.2e |fe| %.2e |diff| %.2e\n", (int)(sim_time*10000), rr, ffx, ffy, ffz, sqrt(ffx*ffx+ffy*ffy+ffz*ffz), multiplier, ffx*multiplier, ffy*multiplier, ffz*multiplier, sqrt((ffx*multiplier)*(ffx*multiplier)+(ffy*multiplier)*(ffy*multiplier)+(ffz*multiplier)*(ffz*multiplier)), sqrt(ffx*ffx+ffy*ffy+ffz*ffz)-sqrt((ffx*multiplier)*(ffx*multiplier)+(ffy*multiplier)*(ffy*multiplier)+(ffz*multiplier)*(ffz*multiplier)));
+		//if(multiplier>0.95 && multiplier < 1.05 && (int)(sim_time*10)%100==0)printf("%d d = %.2e ; fi = %.2e %.2e %.2e |fi| %.2e; multi %.2e fe = %.2e %.2e %.2e |fe| %.2e\n", (int)(sim_time*10000), rr, ffx, ffy, ffz, sqrt(ffx*ffx+ffy*ffy+ffz*ffz), multiplier, ffx*multiplier, ffy*multiplier, ffz*multiplier, sqrt((ffx*multiplier)*(ffx*multiplier)+(ffy*multiplier)*(ffy*multiplier)+(ffz*multiplier)*(ffz*multiplier)));
+
+		//if(multiplier>0.95 && multiplier < 1.05){ //set force 0 in direct contact to avoid wobbling
+		//	fe[0] = ffx;
+		//	fe[1] = ffy;
+		//	fe[2] = ffz;
+		//}
+		//else{
+			fe[0] = (ffx*multiplier);
+			fe[1] = (ffy*multiplier);
+			fe[2] = (ffz*multiplier);
+		//}
+		/*ffx -= fe[0];
+		ffy -= fe[1];
+		ffz -= fe[2];*/
+		//if((int)(sim_time*10000)%300==0)printf("%d d = %.2e ; fi = %.2e %.2e %.2e |fi| %.2e; multi %.2e fe = %.2e %.2e %.2e |fe| %.2e |diff| %.2e\n", (int)(sim_time*10000), rr, fi[0], fi[1],fi[2], sqrt(fi[0]*fi[0]+fi[1]*fi[1]+fi[2]*fi[2]), multiplier, fe[0], fe[1], fe[2], sqrt((fe[0])*(fe[0])+(fe[1])*(fe[1])+(fe[2])*(fe[2])),sqrt(fi[0]*fi[0]+fi[1]*fi[1]+fi[2]*fi[2])-sqrt((fe[0])*(fe[0])+(fe[1])*(fe[1])+(fe[2])*(fe[2])));
+
+		//ffx -= (ffx*multiplier*dr[0]/rr);
+		//ffy -= (ffy*multiplier*dr[1]/rr);
+		//ffz -= (ffz*multiplier*dr[2]/rr);
+
+		//if((int)(sim_time*1000)%100==0)printf("multi %.2e fe = %.2e %.2e %.2e |fe| %.2e\n", multiplier, ffx*multiplier, ffy*multiplier, ffz*multiplier, ffz, sqrt((ffx*multiplier)*(ffx*multiplier)+(ffy*multiplier)*(ffy*multiplier)+(ffz*multiplier)*(ffz*multiplier)));
+	}
+    #endif
+
+
     // Add the force to the particles
     p1->f.f[0] +=coulomb.Dprefactor*ffx;
     p1->f.f[1] +=coulomb.Dprefactor*ffy;
@@ -466,6 +575,27 @@ int dawaanr_set_params()
 
   return ES_OK;
 }
+
+#ifdef EXCLUDED_VOLUME_FORCE
+int dawaanr_set_params_evf(double A, double xi, double cut)
+{
+  if (n_nodes > 1) {
+    return ES_ERROR;
+  }
+
+  evf_A = A;
+  evf_xi = xi;
+  evf_cut = cut;
+
+  if (coulomb.Dmethod != DIPOLAR_ALL_WITH_ALL_AND_NO_REPLICA ) {
+    coulomb.Dmethod = DIPOLAR_ALL_WITH_ALL_AND_NO_REPLICA;
+  }
+  // also necessary on 1 CPU, does more than just broadcasting
+  mpi_bcast_coulomb_params();
+
+  return ES_OK;
+}
+#endif
 
 int mdds_set_params(int n_cut)
 {
