@@ -52,10 +52,44 @@ int  tclprint_to_result_DAWAANR(Tcl_Interp *interp)
 
 int tclcommand_inter_magnetic_parse_dawaanr(Tcl_Interp * interp, int argc, char ** argv)
 {
+#ifdef EXCLUDED_VOLUME_FORCE
+  double evf_A=-1.0;
+  double evf_xi=-1.0;
+  double evf_cut=-1.0;
+
+  if (argc != 3) {
+    Tcl_AppendResult(interp, "evf needs 3 parameters: <A> <xi> <cut>", (char *) NULL);
+    return TCL_ERROR;
+  }
+
+  if (! (ARG0_IS_D(evf_A) && evf_A >= 0.0)) {
+	Tcl_AppendResult(interp, "A expects an nonnegative double",
+			 (char *) NULL);
+	return TCL_ERROR;
+  }
+
+  if (! (ARG1_IS_D(evf_xi) && evf_xi >= 0.0)) {
+	Tcl_AppendResult(interp, "xi expects an nonnegative double",
+			 (char *) NULL);
+	return TCL_ERROR;
+  }
+  argc -= 2; argv += 2;
+
+  if (! (ARG0_IS_D(evf_cut) && evf_cut >= 0.0)) {
+	Tcl_AppendResult(interp, "cut expects an nonnegative double",
+			 (char *) NULL);
+	return TCL_ERROR;
+  }
+  if (dawaanr_set_params_evf(evf_A, evf_xi, evf_cut) != ES_OK) {
+    Tcl_AppendResult(interp, "sorry: DAWAANR only works with 1 cpu", (char *) NULL);
+    return TCL_ERROR;
+  }
+#else
   if (dawaanr_set_params() != ES_OK) {
     Tcl_AppendResult(interp, "sorry: DAWAANR only works with 1 cpu", (char *) NULL);
     return TCL_ERROR;
   }
+#endif
   return TCL_OK;
 }
 

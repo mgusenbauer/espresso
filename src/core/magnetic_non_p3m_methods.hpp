@@ -49,6 +49,7 @@ double dawaanr_calculations(int force_flag, int energy_flag) ;
     @return ES_ERROR, if not on a single CPU
  */
 int dawaanr_set_params();
+int dawaanr_set_params_evf(double A, double xi, double cut);
 
 /* =============================================================================
                   DIRECT SUM FOR MAGNETIC SYSTEMS               

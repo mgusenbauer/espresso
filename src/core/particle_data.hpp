@@ -115,6 +115,11 @@ typedef struct {
   double dipm;
 #endif
 
+#ifdef EXCLUDED_VOLUME_FORCE
+  /** radius of particle */
+  double radius;
+#endif
+
 #ifdef VIRTUAL_SITES
   /** is particle virtual
       0 = real particle
@@ -646,6 +651,15 @@ int set_particle_dip(int part, double dip[3]);
     @return ES_OK if particle existed
 */
 int set_particle_dipm(int part, double dipm);
+#endif
+
+#ifdef EXCLUDED_VOLUME_FORCE
+/** Call only on the master node: set particle radius.
+    @param part the particle.
+    @param radius of particle
+    @return ES_OK if particle existed
+*/
+int set_particle_radius(int part, double radius);
 #endif
 
 #ifdef VIRTUAL_SITES
