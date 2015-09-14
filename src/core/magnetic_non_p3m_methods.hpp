@@ -50,6 +50,9 @@ double dawaanr_calculations(int force_flag, int energy_flag) ;
  */
 int dawaanr_set_params();
 
+#ifdef EXCLUDED_VOLUME_FORCE
+int dawaanr_set_params_evf(double A, double xi, double cut);
+#endif
 /* =============================================================================
                   DIRECT SUM FOR MAGNETIC SYSTEMS               
    =============================================================================

@@ -185,6 +185,10 @@ void init_particle(Particle *part)
   part->p.dipm      = 0.0;
 #endif
 
+#ifdef EXCLUDED_VOLUME_FORCE
+  part->p.radius = 0.0;
+#endif
+
   /* ParticleMomentum */
   part->m.v[0]     = 0.0;
   part->m.v[1]     = 0.0;
@@ -807,6 +811,26 @@ int set_particle_dip(int part, double dip[3])
   return ES_OK;
 }
 
+#endif
+
+#ifdef EXCLUDED_VOLUME_FORCE
+int set_particle_radius(int part, double radius)
+{
+  int pnode;
+  
+  if (!particle_node)
+    build_particle_node();
+
+  if (part < 0 || part > max_seen_particle)
+    return ES_ERROR;
+  pnode = particle_node[part];
+
+  if (pnode == -1)
+    return ES_ERROR;
+  mpi_send_radius(pnode, part, radius);
+
+  return ES_OK;
+}
 #endif
 
 #ifdef VIRTUAL_SITES

@@ -280,6 +280,16 @@ void mpi_send_dip(int node, int part, double dip[3]);
 void mpi_send_dipm(int node, int part, double dipm);
 #endif
 
+#ifdef EXCLUDED_VOLUME_FORCE
+/** Issue REQ_SET_RADIUS: send particle radius.
+    Also calls \ref on_particle_change.
+    \param part the particle.
+    \param node the node it is attached to.
+    \param radius of particle.
+*/
+void mpi_send_radius(int node, int part, double radius);
+#endif
+
 #ifdef VIRTUAL_SITES
 /** Issue REQ_SET_DIPM: send particle dipole moment.
     Also calls \ref on_particle_change.

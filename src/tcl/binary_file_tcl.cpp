@@ -107,6 +107,11 @@ int tclcommand_writemd(ClientData data, Tcl_Interp *interp,
       row[i] = MZ;
     }    
 #endif    
+#ifdef EXCLUDED_VOLUME_FORCE
+	else if (!strncmp(*argv, "radius", strlen(*argv))) {
+      row[i] = RADIUS;
+    }
+#endif
     else if (!strncmp(*argv, "vx", strlen(*argv))) {
       row[i] = VX;
     }
@@ -176,6 +181,9 @@ int tclcommand_writemd(ClientData data, Tcl_Interp *interp,
 	case MY:   Tcl_Write(channel, (char *)&data.r.dip[1], sizeof(double)); break;
 	case MZ:   Tcl_Write(channel, (char *)&data.r.dip[2], sizeof(double)); break;
 #endif
+#ifdef EXCLUDED_VOLUME_FORCE
+	case RADIUS:   Tcl_Write(channel, (char *)&data.p.radius, sizeof(double)); break;
+#endif
 	case TYPE: Tcl_Write(channel, (char *)&data.p.type, sizeof(int)); break;
 	}
       }
@@ -201,6 +209,9 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
   int av_pos = 0, av_v = 0, 
 #ifdef DIPOLES 
     av_dip=0, 
+#endif
+#ifdef EXCLUDED_VOLUME_FORCE
+    av_radius=0,
 #endif
 #ifdef MASS
     av_mass=0,
@@ -260,6 +271,9 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
     case   MX:   dip_row[0] = i; break;
     case   MY:   dip_row[1] = i; break;
     case   MZ:   dip_row[2] = i; break;
+#endif
+#ifdef EXCLUDED_VOLUME_FORCE
+    case   RADIUS:   av_radius = 1; break;
 #endif
     case   FX:   f_row[0] = i; break;
     case   FY:   f_row[1] = i; break;
@@ -339,7 +353,9 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
       case   MY: Tcl_Read(channel, (char *)&data.r.dip[1], sizeof(double)); break;
       case   MZ: Tcl_Read(channel, (char *)&data.r.dip[2], sizeof(double)); break;
 #endif
-
+#ifdef EXCLUDED_VOLUME_FORCE
+      case   RADIUS: Tcl_Read(channel, (char *)&data.p.radius, sizeof(double)); break;
+#endif
       case TYPE: Tcl_Read(channel, (char *)&data.p.type, sizeof(int)); break;
       }
     }
@@ -371,6 +387,10 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
 #ifdef DIPOLES
     if (av_dip)
       set_particle_dip(data.p.identity, data.r.dip);
+#endif
+#ifdef EXCLUDED_VOLUME_FORCE
+    if (av_radius)
+      set_particle_radius(data.p.identity, data.p.radius);
 #endif
     if (av_v)
       set_particle_v(data.p.identity, data.m.v);
