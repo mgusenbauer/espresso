@@ -106,7 +106,15 @@ int tclcommand_writemd(ClientData data, Tcl_Interp *interp,
     else if (!strncmp(*argv, "mz", strlen(*argv))) {
       row[i] = MZ;
     }    
-#endif    
+#endif 
+#ifdef SOFTMAGNETIC
+	else if (!strncmp(*argv, "susc", strlen(*argv))) {
+      row[i] = SUSC;
+    }
+    else if (!strncmp(*argv, "sat", strlen(*argv))) {
+      row[i] = SAT;
+    }
+#endif   
 #ifdef EXCLUDED_VOLUME_FORCE
 	else if (!strncmp(*argv, "radius", strlen(*argv))) {
       row[i] = RADIUS;
@@ -181,6 +189,10 @@ int tclcommand_writemd(ClientData data, Tcl_Interp *interp,
 	case MY:   Tcl_Write(channel, (char *)&data.r.dip[1], sizeof(double)); break;
 	case MZ:   Tcl_Write(channel, (char *)&data.r.dip[2], sizeof(double)); break;
 #endif
+#ifdef SOFTMAGNETIC
+	case SUSC:   Tcl_Write(channel, (char *)&data.p.susc, sizeof(double)); break;
+	case SAT:   Tcl_Write(channel, (char *)&data.p.sat, sizeof(double)); break;
+#endif
 #ifdef EXCLUDED_VOLUME_FORCE
 	case RADIUS:   Tcl_Write(channel, (char *)&data.p.radius, sizeof(double)); break;
 #endif
@@ -209,6 +221,10 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
   int av_pos = 0, av_v = 0, 
 #ifdef DIPOLES 
     av_dip=0, 
+#endif
+#ifdef SOFTMAGNETIC 
+    av_susc=0, 
+    av_sat=0,
 #endif
 #ifdef EXCLUDED_VOLUME_FORCE
     av_radius=0,
@@ -271,6 +287,10 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
     case   MX:   dip_row[0] = i; break;
     case   MY:   dip_row[1] = i; break;
     case   MZ:   dip_row[2] = i; break;
+#endif
+#ifdef SOFTMAGNETIC
+    case   SUSC:  av_susc = 1; break;
+    case   SAT:   av_sat  = 1; break;
 #endif
 #ifdef EXCLUDED_VOLUME_FORCE
     case   RADIUS:   av_radius = 1; break;
@@ -353,6 +373,10 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
       case   MY: Tcl_Read(channel, (char *)&data.r.dip[1], sizeof(double)); break;
       case   MZ: Tcl_Read(channel, (char *)&data.r.dip[2], sizeof(double)); break;
 #endif
+#ifdef SOFTMAGNETIC
+      case   SUSC: Tcl_Read(channel, (char *)&data.p.susc, sizeof(double)); break;
+      case   SAT: Tcl_Read(channel, (char *)&data.p.sat, sizeof(double)); break;
+#endif
 #ifdef EXCLUDED_VOLUME_FORCE
       case   RADIUS: Tcl_Read(channel, (char *)&data.p.radius, sizeof(double)); break;
 #endif
@@ -387,6 +411,12 @@ int tclcommand_readmd(ClientData dummy, Tcl_Interp *interp,
 #ifdef DIPOLES
     if (av_dip)
       set_particle_dip(data.p.identity, data.r.dip);
+#endif
+#ifdef SOFTMAGNETIC
+    if (av_susc)
+      set_particle_susc(data.p.identity, data.p.susc);
+    if (av_sat)
+      set_particle_sat(data.p.identity, data.p.sat);
 #endif
 #ifdef EXCLUDED_VOLUME_FORCE
     if (av_radius)

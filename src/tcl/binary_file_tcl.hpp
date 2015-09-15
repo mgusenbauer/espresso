@@ -102,6 +102,10 @@ struct MDHeader {
 #define SOLVATION 15
 /** Row contains the radius of the particle used for EXCLUDED_VOLUME_FORCE. */
 #define RADIUS 16
+/** Row contains the magnetic susceptibility of the particle used for SOFTMAGNETIC. */
+#define SUSC 17
+/** Row contains the magnetic saturation of the particle used for SOFTMAGNETIC. */
+#define SAT 18
 
 /*@}*/
 

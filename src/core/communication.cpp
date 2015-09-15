@@ -132,6 +132,8 @@ static int terminated = 0;
   CB(mpi_bcast_cuda_global_part_vars_slave) \
   CB(mpi_send_dip_slave) \
   CB(mpi_send_dipm_slave) \
+  CB(mpi_send_susc_slave) \
+  CB(mpi_send_sat_slave) \
   CB(mpi_send_radius_slave) \
   CB(mpi_send_fluid_slave) \
   CB(mpi_recv_fluid_slave) \
@@ -1055,6 +1057,70 @@ void mpi_send_dipm_slave(int pnode, int part)
 #ifdef ROTATION
     convert_quatu_to_dip(p->r.quatu, p->p.dipm, p->r.dip);
 #endif
+  }
+
+  on_particle_change();
+#endif
+}
+
+/********************* REQ_SET_SUSC ********/
+
+void mpi_send_susc(int pnode, int part, double susc)
+{
+#ifdef SOFTMAGNETIC
+  mpi_call(mpi_send_susc_slave, pnode, susc);
+
+  if (pnode == this_node) {
+    Particle *p = local_particles[part];
+    p->p.susc = susc;
+  }
+  else {
+    MPI_Send(&susc, 1, MPI_DOUBLE, pnode, SOME_TAG, comm_cart);
+  }
+
+  on_particle_change();
+#endif
+}
+
+void mpi_send_susc_slave(int pnode, int part)
+{
+#ifdef SOFTMAGNETIC
+  if (pnode == this_node) {
+    Particle *p = local_particles[part];
+        MPI_Recv(&p->p.susc, 1, MPI_DOUBLE, 0, SOME_TAG,
+	     comm_cart, MPI_STATUS_IGNORE);
+  }
+
+  on_particle_change();
+#endif
+}
+
+/********************* REQ_SET_SAT ********/
+
+void mpi_send_sat(int pnode, int part, double sat)
+{
+#ifdef SOFTMAGNETIC
+  mpi_call(mpi_send_sat_slave, pnode, sat);
+
+  if (pnode == this_node) {
+    Particle *p = local_particles[part];
+    p->p.sat = sat;
+  }
+  else {
+    MPI_Send(&sat, 1, MPI_DOUBLE, pnode, SOME_TAG, comm_cart);
+  }
+
+  on_particle_change();
+#endif
+}
+
+void mpi_send_sat_slave(int pnode, int part)
+{
+#ifdef SOFTMAGNETIC
+  if (pnode == this_node) {
+    Particle *p = local_particles[part];
+        MPI_Recv(&p->p.sat, 1, MPI_DOUBLE, 0, SOME_TAG,
+	     comm_cart, MPI_STATUS_IGNORE);
   }
 
   on_particle_change();

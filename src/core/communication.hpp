@@ -280,6 +280,23 @@ void mpi_send_dip(int node, int part, double dip[3]);
 void mpi_send_dipm(int node, int part, double dipm);
 #endif
 
+#ifdef SOFTMAGNETIC 
+/** Issue REQ_SET_SUSC: send particle magnetic susceptibility.
+    Also calls \ref on_particle_change.
+    \param part the particle.
+    \param node the node it is attached to.
+    \param susc its new magnetic susceptibility.
+*/
+void mpi_send_susc(int node, int part, double susc);
+/** Issue REQ_SET_SAT: send particle magnetic saturation.
+    Also calls \ref on_particle_change.
+    \param part the particle.
+    \param node the node it is attached to.
+    \param sat its new magnetic saturation.
+*/
+void mpi_send_sat(int node, int part, double sat);
+#endif
+
 #ifdef EXCLUDED_VOLUME_FORCE
 /** Issue REQ_SET_RADIUS: send particle radius.
     Also calls \ref on_particle_change.

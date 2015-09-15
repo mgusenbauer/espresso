@@ -234,6 +234,20 @@ void tclcommand_part_print_dip(Particle *part, char *buffer, Tcl_Interp *interp)
 }
 #endif
 
+#ifdef SOFTMAGNETIC
+void tclcommand_part_print_susc(Particle *part, char *buffer, Tcl_Interp *interp)
+{
+  Tcl_PrintDouble(interp, part->p.susc, buffer);
+  Tcl_AppendResult(interp, buffer, " ", (char *)NULL);
+}
+
+void tclcommand_part_print_sat(Particle *part, char *buffer, Tcl_Interp *interp)
+{
+  Tcl_PrintDouble(interp, part->p.sat, buffer);
+  Tcl_AppendResult(interp, buffer, " ", (char *)NULL);
+}
+#endif
+
 #ifdef EXCLUDED_VOLUME_FORCE
 void tclcommand_part_print_radius(Particle *part, char *buffer, Tcl_Interp *interp)
 {
@@ -662,6 +676,15 @@ int tclprint_to_result_Particle(Tcl_Interp *interp, int part_num)
 
 #endif
 
+#ifdef SOFTMAGNETIC
+  /* print information about particle magnetic susceptibility */
+  Tcl_AppendResult(interp, " susc ", (char *)NULL);
+  tclcommand_part_print_susc(&part, buffer, interp);
+   /* print information about particle magnetic saturation */
+  Tcl_AppendResult(interp, " sat ", (char *)NULL);
+  tclcommand_part_print_sat(&part, buffer, interp);
+#endif
+
 #ifdef EXCLUDED_VOLUME_FORCE
   /* print information about particle radius */
   Tcl_AppendResult(interp, " radius ", (char *)NULL);
@@ -898,6 +921,17 @@ int tclcommand_part_parse_print(Tcl_Interp *interp, int argc, char **argv,
       tclcommand_part_print_dip(&part, buffer, interp);
     else if (ARG0_IS_S("dipm")) {
       Tcl_PrintDouble(interp, part.p.dipm, buffer);
+      Tcl_AppendResult(interp, buffer, (char *)NULL);
+    }
+#endif
+
+#ifdef SOFTMAGNETIC
+    else if (ARG0_IS_S("susc")) {
+      Tcl_PrintDouble(interp, part.p.susc, buffer);
+      Tcl_AppendResult(interp, buffer, (char *)NULL);
+    }
+    else if (ARG0_IS_S("sat")) {
+      Tcl_PrintDouble(interp, part.p.sat, buffer);
       Tcl_AppendResult(interp, buffer, (char *)NULL);
     }
 #endif
@@ -1274,6 +1308,58 @@ int tclcommand_part_parse_dip(Tcl_Interp *interp, int argc, char **argv,
   return TCL_OK;
 }
 
+#endif
+
+#ifdef SOFTMAGNETIC
+int tclcommand_part_parse_susc(Tcl_Interp *interp, int argc, char **argv,
+		 int part_num, int * change)
+{
+    double susc;
+
+    *change = 1;
+
+    if (argc < 1) {
+      Tcl_AppendResult(interp, "susc requires 1 argument", (char *) NULL);
+      return TCL_ERROR;
+    }
+
+    /* set magnetic susceptibility */
+    if (! ARG0_IS_D(susc))
+      return TCL_ERROR;
+
+    if (set_particle_susc(part_num, susc) == TCL_ERROR) {
+      Tcl_AppendResult(interp, "set particle position first", (char *)NULL);
+
+      return TCL_ERROR;
+    }
+
+    return TCL_OK;
+}
+
+int tclcommand_part_parse_sat(Tcl_Interp *interp, int argc, char **argv,
+		 int part_num, int * change)
+{
+    double sat;
+
+    *change = 1;
+
+    if (argc < 1) {
+      Tcl_AppendResult(interp, "sat requires 1 argument", (char *) NULL);
+      return TCL_ERROR;
+    }
+
+    /* set magnetic saturation */
+    if (! ARG0_IS_D(sat))
+      return TCL_ERROR;
+
+    if (set_particle_sat(part_num, sat) == TCL_ERROR) {
+      Tcl_AppendResult(interp, "set particle position first", (char *)NULL);
+
+      return TCL_ERROR;
+    }
+
+    return TCL_OK;
+}
 #endif
 
 #ifdef EXCLUDED_VOLUME_FORCE
@@ -2691,6 +2777,15 @@ int tclcommand_part_parse_cmd(Tcl_Interp *interp, int argc, char **argv,
       dipm_set = 1;
     }
 
+#endif
+
+#ifdef SOFTMAGNETIC
+	else if (ARG0_IS_S("susc")) {
+      err = tclcommand_part_parse_susc(interp, argc-1, argv+1, part_num, &change);
+    }
+    else if (ARG0_IS_S("sat")) {
+      err = tclcommand_part_parse_sat(interp, argc-1, argv+1, part_num, &change);
+    }
 #endif
 
 #ifdef EXCLUDED_VOLUME_FORCE

@@ -42,6 +42,93 @@ double evf_xi = -1.0;
 double evf_cut = -1.0;
 #endif
 
+#ifdef SOFTMAGNETIC
+void calculate_dipolar_field(Particle* p1){
+	double fgx, fgy, fgz;
+    double h[3]={0,0,0};
+	double p11[3], p22[3];
+	double dip[3]={0,0,0},eDIP[3]={0,0,0},DIP=0,DIP2=0;
+	int img[3];
+	double dr[3]={0,0,0},r,r2,r3,r5,h2[3]={0,0,0};
+    
+    //double chi = 1.0;//0.226; //1.0;
+	//double mSat= 1;//10632.1467;//5567;//0.124;//87500;  // saturated magnetic moment
+    // M = chi*H, chi needs prefactor due to shape of sphere
+    double ch = 0.524 / (4*M_PI*1e-7);//chi * 0.524 / (4*M_PI*1e-7);
+    double chi = 0.0;
+    
+    memcpy(p11, p1->r.p, 3*sizeof(double));
+	memcpy(img, p1->l.i, 3*sizeof(int));
+	fold_position(p11, img);
+    
+    //int flag=0;
+    Particle* p;
+    double dip2[3]={0,0,0}, ff=0.0, m1r=0.0,m2r=0.0;
+    int c,i;
+    // field from other beads
+    for (c = 0; c < local_cells.n; c++) {
+		// Iterate over all particles in this cell
+		for(i=0;i<local_cells.cell[c]->n;i++) {
+			// obtain field and gradients from magnetic charge sheets
+			p = &local_cells.cell[c]->part[i];
+			memcpy(p22, p->r.p, 3*sizeof(double));
+			memcpy(img, p->l.i, 3*sizeof(int));
+			fold_position(p22, img);
+			// start with adding fields, when particle is the same in the loop
+			//if(p->r.p[0]==p1->r.p[0] && p->r.p[1]==p1->r.p[1] && p->r.p[2]==p1->r.p[2]) {
+			if(p11[0]==p22[0] && p11[1]==p22[1] && p11[2]==p22[2]) {
+				//flag=1;
+				//continue;
+			}
+			else{
+			//if(flag==1){
+				// Distance between particles
+				get_mi_vector(dr,p1->r.p,p->r.p);
+				r2=dr[0]*dr[0]+dr[1]*dr[1]+dr[2]*dr[2];
+				r=sqrt(r2);
+				r3=r2*r;
+				r5=r3*r2;
+				ff=1.0/(4.0*M_PI*r5);
+				m2r=p->r.dip[0]*dr[0]+p->r.dip[1]*dr[1]+p->r.dip[2]*dr[2];
+				m1r=p1->r.dip[0]*dr[0]+p1->r.dip[1]*dr[1]+p1->r.dip[2]*dr[2];
+				
+			
+				for (int k=0;k<3;k++) {
+					h[k] += ff*(3*dr[k]*m2r-p->r.dip[k]*r2);				// Summe h von anderen beads
+					h2[k] += ff*(3*dr[k]*m1r-dip[k]*r2);
+				}
+				
+				
+				chi = ch*p->p.susc;
+				p->r.dip[0]+= h2[0]*chi;  // add dipolar field to other particle; h equals the B field
+				p->r.dip[1]+= h2[1]*chi;
+				p->r.dip[2]+= h2[2]*chi;
+			}
+		}
+	  }
+    chi = ch*p1->p.susc;
+    dip[0]= h[0]*chi;  // h equals the B field
+	dip[1]= h[1]*chi;
+    dip[2]= h[2]*chi;
+    
+    p1->r.dip[0] += dip[0]; 
+    p1->r.dip[1] += dip[1];
+    p1->r.dip[2] += dip[2];
+    
+     DIP2=p1->r.dip[0]*p1->r.dip[0]+p1->r.dip[1]*p1->r.dip[1]+p1->r.dip[2]*p1->r.dip[2];
+	 DIP=sqrt(DIP2);
+	 
+	//printf("|m| %e ", DIP);
+	if(DIP > p1->p.sat){
+		for(int j=0;j<3; j++){
+			eDIP[j]=p1->r.dip[j]*1/DIP;  //Einheitsvektor
+			p1->r.dip[j]=eDIP[j]*p1->p.sat;
+		}
+	}
+    //if((int)time_step%10000==0)printf("m: %e %e %e\n", p1->r.dip[0],p1->r.dip[1],p1->r.dip[2]); 
+}
+#endif
+
 // Calculates dipolar energy and/or force between two particles
 double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 {
@@ -248,6 +335,19 @@ double dawaanr_calculations(int force_flag, int energy_flag)
   
   if(n_nodes!=1) {fprintf(stderr,"error:  DAWAANR is just for one cpu .... \n"); errexit();}
   if(!(force_flag) && !(energy_flag) ) {fprintf(stderr," I don't know why you call dawaanr_caclulations with all flags zero \n"); return 0;}
+  
+  #ifdef SOFTMAGNETIC
+  for (c = 0; c < local_cells.n; c++) {
+    // Iterate over all particles in this cell
+    for(i=0;i<local_cells.cell[c]->n;i++) {
+      // obtain field and gradients from magnetic charge sheets
+      	if( local_cells.cell[c]->part[i].p.sat == 0 ) 
+			continue;
+       calculate_dipolar_field(&local_cells.cell[c]->part[i]);
+	}
+  }
+  #endif
+  
   
   // Variable to sum up the energy
   u=0;

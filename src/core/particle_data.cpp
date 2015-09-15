@@ -185,6 +185,11 @@ void init_particle(Particle *part)
   part->p.dipm      = 0.0;
 #endif
 
+#ifdef SOFTMAGNETIC
+  part->p.susc = 0.0;
+  part->p.sat = 0.0;
+#endif
+
 #ifdef EXCLUDED_VOLUME_FORCE
   part->p.radius = 0.0;
 #endif
@@ -811,6 +816,44 @@ int set_particle_dip(int part, double dip[3])
   return ES_OK;
 }
 
+#endif
+
+#ifdef SOFTMAGNETIC
+int set_particle_susc(int part, double susc)
+{
+  int pnode;
+  
+  if (!particle_node)
+    build_particle_node();
+
+  if (part < 0 || part > max_seen_particle)
+    return ES_ERROR;
+  pnode = particle_node[part];
+
+  if (pnode == -1)
+    return ES_ERROR;
+  mpi_send_susc(pnode, part, susc);
+
+  return ES_OK;
+}
+
+int set_particle_sat(int part, double sat)
+{
+  int pnode;
+  
+  if (!particle_node)
+    build_particle_node();
+
+  if (part < 0 || part > max_seen_particle)
+    return ES_ERROR;
+  pnode = particle_node[part];
+
+  if (pnode == -1)
+    return ES_ERROR;
+  mpi_send_sat(pnode, part, sat);
+
+  return ES_OK;
+}
 #endif
 
 #ifdef EXCLUDED_VOLUME_FORCE

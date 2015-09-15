@@ -125,6 +125,13 @@ typedef struct {
   double dipm;
 #endif
 
+#ifdef SOFTMAGNETIC
+  /** magnetic susceptibility of particle */
+  double susc;
+    /** magnetic saturation of particle */
+  double sat;
+#endif
+
 #ifdef EXCLUDED_VOLUME_FORCE
   /** radius of particle */
   double radius;
@@ -679,6 +686,22 @@ int set_particle_dip(int part, double dip[3]);
     @return ES_OK if particle existed
 */
 int set_particle_dipm(int part, double dipm);
+#endif
+
+#ifdef SOFTMAGNETIC
+/** Call only on the master node: set particle magnetic susceptibility.
+    @param part the particle.
+    @param susc its new magnetic susceptibility.
+    @return ES_OK if particle existed
+*/
+int set_particle_susc(int part, double susc);
+
+/** Call only on the master node: set particle magnetic saturation.
+    @param part the particle.
+    @param sat its new magnetic saturation.
+    @return ES_OK if particle existed
+*/
+int set_particle_sat(int part, double sat);
 #endif
 
 #ifdef EXCLUDED_VOLUME_FORCE
