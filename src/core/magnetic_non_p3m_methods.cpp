@@ -42,6 +42,191 @@ double evf_xi = -1.0;
 double evf_cut = -1.0;
 #endif
 
+#ifdef MAGNETIC_CHARGE_SHEETS
+// akoun 1984
+// HARDCODED position, size and magnetization of magnetic charge sheets
+// field and gradients from rectangular charge sheet with uniform magnetization simga = |J| along z
+void fields_rectPole(double x, double y, double z, double a, double b, double* dhdx, double* dhdy, double* dhdz, double* h, double sigma, int div){
+	double f,s,t,r,r2;
+	double fpow, rmint, rmins, dr, st,rz,stdivrz,ff;
+	
+	//f = 1.0/(4.0*acos( -1.0 ));   acos(-1) == PI
+	f = sigma/(4.0*M_PI);//*my0);
+
+	//printf("relative distance %e %e %e\n", x,y,z);
+
+	for(int i=0;i<2;i++){
+		for(int j=0;j<2;j++){
+			s = x - pow((-1),i) * a;
+			t = y - pow((-1),j) * b;
+			r2=s*s+t*t+z*z;
+			r = sqrt(r2);
+			fpow=f*pow((-1),(i+j));
+			rmint=r-t;
+			rmins=r-s;
+			st=s*t;
+			rz=r*z;
+			stdivrz=(st)/(rz);
+			ff=(1+(stdivrz*stdivrz))*rz*rz;
+			
+			if(div==0){
+				// field values
+				h[0] += fpow * log(rmint);      // log == ln
+				h[1] += fpow * log(rmins);
+				h[2] += fpow * atan(stdivrz);
+			}
+			else if (div==1){
+				
+				// nach x ableiten
+				dr = s / r;
+				dhdx[0] += fpow * dr / rmint;
+				dhdx[1] += fpow * (dr - 1.0) / rmins;
+				dhdx[2] += fpow * (t*rz - st*dr*z) / ff;
+				
+				// nach y ableiten
+				dr = t / r;
+				dhdy[0] += fpow * (dr - 1.0) / rmint;
+				dhdy[1] += fpow * dr / rmins;
+				dhdy[2] += fpow * (s*rz - st*dr*z) / ff;
+				
+				// nach z ableiten
+				dr = z / r;
+				dhdz[0] += fpow * dr / rmint;
+				dhdz[1] += fpow * dr / rmins;
+				dhdz[2] -= fpow * st * (dr*z+r) / ((stdivrz*stdivrz)+1) / (rz*rz);
+			}
+		}
+	}
+}
+
+void fields_betweenRectPoles(double x, double y, double z, double magX, double magY, double magZ, double a, double b, double c, double* dhdx, double* dhdy, double* dhdz, double* h, double sigma, int div){
+	
+	double h1[3]={0,0,0},h2[3]={0,0,0};
+	double dhdx1[3]={0,0,0}, dhdx2[3]={0,0,0}, dhdy1[3]={0,0,0}, dhdy2[3]={0,0,0}, dhdz1[3]={0,0,0}, dhdz2[3]={0,0,0};
+	
+	fields_rectPole(x-magX,y-magY, z-magZ-c, a,b,dhdx1, dhdy1, dhdz1, h1, sigma, div);
+	fields_rectPole(x-magX,y-magY, z-magZ+c, a,b,dhdx2, dhdy2, dhdz2, h2, sigma, div);
+	
+	for(int i=0;i<3;i++){
+		if(div==0){
+			h[i]=h1[i]-h2[i];
+		}
+		else if(div==1){
+			dhdx[i]=dhdx1[i]-dhdx2[i];
+			dhdy[i]=dhdy1[i]-dhdy2[i];
+			dhdz[i]=dhdz1[i]-dhdz2[i];
+		}
+		//dhdx[i]=dhdx1[i];
+		//dhdy[i]=dhdy1[i];
+		//dhdz[i]=dhdz1[i];
+	}
+}
+
+void calculate_gradient_field(Particle* p1, double* pos, double* size, double sigma){
+    double h[3]={0,0,0};
+	double dhdx[3]={0,0,0}, dhdy[3]={0,0,0}, dhdz[3]={0,0,0};
+	double p11[3];
+	double dip[3]={0,0,0};
+	int img[3];
+	
+	
+	memcpy(p11, p1->r.p, 3*sizeof(double));
+	memcpy(img, p1->l.i, 3*sizeof(int));
+	fold_position(p11, img);
+	
+	// hardcoded magnet values
+	//double magX = 50., magY = 10., magZ = 10.; // center of channel
+	/*if(time_step < 1000000) magX = 20;
+	if(time_step < 2000000) magX = 50;
+	if(time_step < 3000000) magX = 70;*/
+	//double a = 10, b = 10, c = 1e8; // charge sheets with dimensions 10x10, poles outside the channel
+	//double sigma = 1;//0.05056;//100;//1.6;
+	//double chi = 1.0;//0.226; //1.0;
+	//double mSat= 1;//10632.1467;//0.124;//87500;  // saturated magnetic moment
+	
+	// Volume sphere = 4/3 pi r^3 --> r=0.5
+	//double ch = 0.524 / (4*M_PI*1e-7);//chi * 0.524 / (4*M_PI*1e-7);
+    //double chi = 0.0;
+	double ch = 0.0;//0.524 / (4*M_PI*1e-7);//chi * 0.524 / (4*M_PI*1e-7);
+    double chi = 0.0;
+    double vol = 0.0;
+	
+	//printf("pos orig-fold: %e %e %e\n", p1->r.p[0]- p11[0], p1->r.p[1]-p11[1], p1->r.p[2]-p11[2]);
+	
+	//fields_betweenRectPoles(p11[0], p11[1], p11[2], magX, magY, magZ, a, b, c, dhdx, dhdy, dhdz, h, sigma,0);
+	fields_betweenRectPoles(p11[0], p11[1], p11[2], pos[0], pos[1], pos[2], size[0], size[1], size[2], dhdx, dhdy, dhdz, h, sigma,0);
+
+	//fields_betweenRectPoles(p1->r.p[0], p1->r.p[1], p1->r.p[2], magX, magY, magZ, a, b, c, dhdx, dhdy, dhdz, h, sigma, 0);
+    
+    //double ch = chi * 0.524 / (4*M_PI*1e-7); // Volume sphere = 4/3 pi r^3 --> r=0.5
+    
+    ch = 3*p1->p.susc/(3+p1->p.susc);
+	vol = 4.188790205 * p1->p.radius * p1->p.radius * p1->p.radius; // vol = 4/3*pi*r^3
+	chi = ch * vol; 
+	
+    //chi = ch*p1->p.susc;
+    dip[0]= h[0]*chi;  // h equals the external B field
+    dip[1]= h[1]*chi;
+    dip[2]= h[2]*chi;
+    
+    // set dipole fields
+    p1->r.dip[0] = dip[0]; 
+    p1->r.dip[1] = dip[1];
+    p1->r.dip[2] = dip[2];
+    //if((int)time_step % 10000 == 0)printf("h: %e %e %e, dhdx:  %e %e %e, dhdy:  %e %e %e, \ndhdz:  %e %e %e, fg:  %e %e %e\n=====================", h[0], h[1],h[2], dhdx[0],dhdx[1],dhdx[2], dhdy[0],dhdy[1],dhdy[2], dhdz[0],dhdz[1],dhdz[2],fgx,fgy,fgz); 
+}
+
+// Calculate field and gradient force from permanent magnets
+void calculate_moment_force(Particle* p1, double* pos, double* size, double sigma){
+	double fgx, fgy, fgz;
+    double h[3]={0,0,0};
+	double dhdx[3]={0,0,0}, dhdy[3]={0,0,0}, dhdz[3]={0,0,0};
+	double p11[3];
+	double dip[3]={0,0,0},eDIP[3]={0,0,0},DIP=0,DIP2=0;
+	int img[3];
+	
+	
+	memcpy(p11, p1->r.p, 3*sizeof(double));
+	memcpy(img, p1->l.i, 3*sizeof(int));
+	fold_position(p11, img);
+	
+	// hardcoded magnet values
+	//double magX = 12.5, magY = 12.5, magZ = 12.5; // center of channel
+	/*if(time_step < 1000000) magX = 20;
+	if(time_step >= 1000000 && time_step < 2000000) magX = 50;
+	if(time_step >= 2000000 && time_step < 3000000) magX = 70;*/
+
+	
+	//double a = 12.5, b = 12.5, c = 1e8; // charge sheets with dimensions 10x10, poles outside the channel
+	//double sigma = 1;//0.05056;//100;//1.6;
+	//double chi = 1.0;//0.226; //1.0;
+	//double mSat= 1;//10632.1467;//5567;//0.124;//87500;  // saturated magnetic moment
+	
+	//printf("pos orig-fold: %e %e %e\n", p1->r.p[0]- p11[0], p1->r.p[1]-p11[1], p1->r.p[2]-p11[2]);
+	
+	//fields_betweenRectPoles(p11[0], p11[1], p11[2], magX, magY, magZ, a, b, c, dhdx, dhdy, dhdz, h, sigma,1);
+	fields_betweenRectPoles(p11[0], p11[1], p11[2], pos[0], pos[1], pos[2], size[0], size[1], size[2], dhdx, dhdy, dhdz, h, sigma,1);
+	
+	//fields_betweenRectPoles(p1->r.p[0], p1->r.p[1], p1->r.p[2], magX, magY, magZ, a, b, c, dhdx, dhdy, dhdz, h, sigma, 1);
+    
+    // calculate gradient force
+    fgx = p1->r.dip[0]*dhdx[0] + p1->r.dip[1]*dhdx[1] + p1->r.dip[2]*dhdx[2];
+	fgy = p1->r.dip[0]*dhdy[0] + p1->r.dip[1]*dhdy[1] + p1->r.dip[2]*dhdy[2];
+	fgz = p1->r.dip[0]*dhdz[0] + p1->r.dip[1]*dhdz[1] + p1->r.dip[2]*dhdz[2];
+    
+    // set gradient force
+    p1->f.f[0] +=fgx;
+    p1->f.f[1] +=fgy;
+    p1->f.f[2] +=fgz;
+    
+    //if((int)(sim_time*100)%300==0) printf("X %.2e fg:  %.2e %.2e %.2e, |fg| %.2e\n", p1->r.p[0],fgx,fgy,fgz,sqrt(fgx*fgx+fgy*fgy+fgz*fgz));
+    
+  //  if((int)time_step % 10000 == 0) printf("h: %e %e %e, dhdx:  %e %e %e, dhdy:  %e %e %e, \ndhdz:  %e %e %e, fg:  %e %e %e magX %e\n=====================", h[0], h[1],h[2], dhdx[0],dhdx[1],dhdx[2], dhdy[0],dhdy[1],dhdy[2], dhdz[0],dhdz[1],dhdz[2],fgx,fgy,fgz,magX); 
+    //if((int)time_step % 100000 == 0) printf("h: %e %e %e, fg:  %e %e %e\n", h[0], h[1],h[2],fgx,fgy,fgz); 
+
+}
+#endif
+
 #ifdef SOFTMAGNETIC
 void calculate_dipolar_field(Particle* p1){
 	double fgx, fgy, fgz;
@@ -54,8 +239,12 @@ void calculate_dipolar_field(Particle* p1){
     //double chi = 1.0;//0.226; //1.0;
 	//double mSat= 1;//10632.1467;//5567;//0.124;//87500;  // saturated magnetic moment
     // M = chi*H, chi needs prefactor due to shape of sphere
-    double ch = 0.524 / (4*M_PI*1e-7);//chi * 0.524 / (4*M_PI*1e-7);
+    
+    // Volume sphere = 4/3 pi r^3 --> r=0.5
+    //double ch = 3*susc/(3+susc)
+    double ch = 0.0;//0.524 / (4*M_PI*1e-7);//chi * 0.524 / (4*M_PI*1e-7);
     double chi = 0.0;
+    double vol = 0.0;
     
     memcpy(p11, p1->r.p, 3*sizeof(double));
 	memcpy(img, p1->l.i, 3*sizeof(int));
@@ -98,15 +287,23 @@ void calculate_dipolar_field(Particle* p1){
 					h2[k] += ff*(3*dr[k]*m1r-dip[k]*r2);
 				}
 				
-				
-				chi = ch*p->p.susc;
+				ch = 3*p->p.susc/(3+p->p.susc);
+				vol = 4.188790205 * p->p.radius * p->p.radius * p->p.radius; // vol = 4/3*pi*r^3
+				chi = ch * vol;
 				p->r.dip[0]+= h2[0]*chi;  // add dipolar field to other particle; h equals the B field
 				p->r.dip[1]+= h2[1]*chi;
 				p->r.dip[2]+= h2[2]*chi;
 			}
 		}
 	  }
-    chi = ch*p1->p.susc;
+	  
+	ch = 3*p1->p.susc/(3+p1->p.susc);
+	vol = 4.188790205 * p1->p.radius * p1->p.radius * p1->p.radius; // vol = 4/3*pi*r^3
+	chi = ch * vol; 
+	 
+    //chi = ch*p1->p.susc;
+    
+    // m = vol*M = vol*ch*H --> ch = 3*susc/(3+susc) due to sphere
     dip[0]= h[0]*chi;  // h equals the B field
 	dip[1]= h[1]*chi;
     dip[2]= h[2]*chi;
@@ -333,14 +530,44 @@ double dawaanr_calculations(int force_flag, int energy_flag)
   double u; 
   int i,j,c,cc;
   
+  // HARDCODED position, size and magnetization of magnetic charge sheets
+  #ifdef MAGNETIC_CHARGE_SHEETS
+  double pos[3]={50.,10.,10.}; // center of channel
+  double size[3]={10,10,1000}; // charge sheets with dimensions 20x20, located outside the channel z=+-1000 Lm
+  double sigma=1.0;
+  #endif
+  
+  	//double magX = 50., magY = 10., magZ = 10.; // center of channel
+	/*if(time_step < 1000000) magX = 20;
+	if(time_step < 2000000) magX = 50;
+	if(time_step < 3000000) magX = 70;*/
+	//double a = 10, b = 10, c = 1e8; // charge sheets with dimensions 10x10, poles outside the channel
+  
+  
   if(n_nodes!=1) {fprintf(stderr,"error:  DAWAANR is just for one cpu .... \n"); errexit();}
   if(!(force_flag) && !(energy_flag) ) {fprintf(stderr," I don't know why you call dawaanr_caclulations with all flags zero \n"); return 0;}
   
-  #ifdef SOFTMAGNETIC
+  // calculate field from charge sheets and set dip in particles
+  #ifdef MAGNETIC_CHARGE_SHEETS
+  // Iterate over all cells
   for (c = 0; c < local_cells.n; c++) {
     // Iterate over all particles in this cell
     for(i=0;i<local_cells.cell[c]->n;i++) {
-      // obtain field and gradients from magnetic charge sheets
+      // obtain field from magnetic charge sheets
+		if( local_cells.cell[c]->part[i].p.sat == 0 ) 
+			continue;
+       calculate_gradient_field(&local_cells.cell[c]->part[i], pos, size, sigma);
+	}
+  }
+  #endif
+  
+  // calculate field from surrounding dipoles and add it to dip in particles
+  #ifdef SOFTMAGNETIC
+  // Iterate over all cells
+  for (c = 0; c < local_cells.n; c++) {
+    // Iterate over all particles in this cell
+    for(i=0;i<local_cells.cell[c]->n;i++) {
+      // obtain field from surrounding dipoles
       	if( local_cells.cell[c]->part[i].p.sat == 0 ) 
 			continue;
        calculate_dipolar_field(&local_cells.cell[c]->part[i]);
@@ -348,6 +575,19 @@ double dawaanr_calculations(int force_flag, int energy_flag)
   }
   #endif
   
+  // calculate gradient force based on dip and gradient field of permanent magnet
+  #ifdef MAGNETIC_CHARGE_SHEETS
+   // Iterate over all cells
+  for (c = 0; c < local_cells.n; c++) {
+    // Iterate over all particles in this cell
+    for(i=0;i<local_cells.cell[c]->n;i++) {
+      // obtain gradient field from magnetic charge sheets
+      	if( local_cells.cell[c]->part[i].p.sat == 0 ) 
+			continue;
+       calculate_moment_force(&local_cells.cell[c]->part[i], pos, size, sigma);
+	}
+  }
+  #endif
   
   // Variable to sum up the energy
   u=0;
