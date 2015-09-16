@@ -36,6 +36,8 @@
 
 #ifdef DIPOLES
 
+double mu0 = 1.256637061e-6; // my0 = 4e-7*M_PI N/A^2
+
 #ifdef EXCLUDED_VOLUME_FORCE
 double evf_A = -1.0;
 double evf_xi = -1.0;
@@ -162,7 +164,7 @@ void calculate_gradient_field(Particle* p1, double* pos, double* size, double si
     
     ch = 3*p1->p.susc/(3+p1->p.susc);
 	vol = 4.188790205 * p1->p.radius * p1->p.radius * p1->p.radius; // vol = 4/3*pi*r^3
-	chi = ch * vol; 
+	chi = ch * vol / mu0; 
 	
     //chi = ch*p1->p.susc;
     dip[0]= h[0]*chi;  // h equals the external B field
@@ -289,7 +291,7 @@ void calculate_dipolar_field(Particle* p1){
 				
 				ch = 3*p->p.susc/(3+p->p.susc);
 				vol = 4.188790205 * p->p.radius * p->p.radius * p->p.radius; // vol = 4/3*pi*r^3
-				chi = ch * vol;
+				chi = ch * vol / mu0;  // field values in B units, hence dividing by mu0
 				p->r.dip[0]+= h2[0]*chi;  // add dipolar field to other particle; h equals the B field
 				p->r.dip[1]+= h2[1]*chi;
 				p->r.dip[2]+= h2[2]*chi;
@@ -299,7 +301,7 @@ void calculate_dipolar_field(Particle* p1){
 	  
 	ch = 3*p1->p.susc/(3+p1->p.susc);
 	vol = 4.188790205 * p1->p.radius * p1->p.radius * p1->p.radius; // vol = 4/3*pi*r^3
-	chi = ch * vol; 
+	chi = ch * vol / mu0; 
 	 
     //chi = ch*p1->p.susc;
     
@@ -337,7 +339,7 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
   double dr[3];
   
 #ifdef EXCLUDED_VOLUME_FORCE
-  double r12,ff, m,m1, m2,mm,aa,aa2,aa4,e, fffx,fffy,fffz, ffff[3],ffff2,ffff3,fi[3],fe[3],fffffi,fffffe, multiplier;
+  double ff, m,m1, m2,mm,aa,aa2,aa4,e, fffx,fffy,fffz, ffff[3],ffff2,ffff3,fi[3],fe[3],fffffi,fffffe, multiplier;
 #endif
 	
   // Distance between particles
@@ -354,7 +356,12 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
   pe1=p1->r.dip[0]*p2->r.dip[0]+p1->r.dip[1]*p2->r.dip[1]+p1->r.dip[2]*p2->r.dip[2];
   pe2=p1->r.dip[0]*dr[0]+p1->r.dip[1]*dr[1]+p1->r.dip[2]*dr[2];
   pe3=p2->r.dip[0]*dr[0]+p2->r.dip[1]*dr[1]+p2->r.dip[2]*dr[2];
-  pe4=3.0/r5;
+#ifdef EXCLUDED_VOLUME_FORCE 
+// dipole interaction force fom yung1998, additional prefactor to the original dawaanr force 
+  pe4=3.0/r5*1e-7; // additional prefactor mu0/(4*pi)=1e-7 
+#else
+  pe4=3.0/r5
+#endif
 
   // Energy, if requested
   u= coulomb.Dprefactor* ( pe1/r3 -   pe4*pe2*pe3);
@@ -366,23 +373,24 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
     ab =a+b;
     cc=pe4*pe3;
     d=pe4*pe2;
-    
+
     //  Result
     ffx=ab*dr[0]+cc*p1->r.dip[0]+d*p2->r.dip[0];
     ffy=ab*dr[1]+cc*p1->r.dip[1]+d*p2->r.dip[1];
     ffz=ab*dr[2]+cc*p1->r.dip[2]+d*p2->r.dip[2];
+#endif
     
 #ifdef EXCLUDED_VOLUME_FORCE
 // mu0 is not fully implemented in calc_dipole_dipole_ia, take care in excluded volume force calculatoin
 
-// Krishnamurthy2008
+// Krishnamurthy2008 and Melle2003, same magnetization for both dipoles
 #ifdef EXCLUDED_VOLUME_FORCE_V1
-	r12 = p1->p.radius + p2->p.radius;
-	if(r < (evf_cut + r12)){
+	aa = p1->p.radius + p2->p.radius;
+	if(r < (evf_cut + aa)){
 		m=p1->p.dipm;
 		m2=m*m;
 
-		aa2=r12*r12;
+		aa2=aa*aa;
 		aa4=aa2*aa2;
 
 		ff = evf_A * m2 / aa4;
@@ -394,29 +402,29 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 	}
 #endif
 
-// Melle2003
+// adapted to yung1998 formulation
 #ifdef EXCLUDED_VOLUME_FORCE_V2
-	r12 = p1->p.radius + p2->p.radius;
-	if(r < (evf_cut + r12)){
+	aa = p1->p.radius + p2->p.radius;
+	if(r < (evf_cut + aa)){
 		//m1=p1->p.dipm;
 		//m2=p2->p.dipm;
 		//mm=m1*m2;
 
-		aa2=r12*r12;
+		aa2=aa*aa;
 		aa4=aa2*aa2;
 
-		ff = evf_A * 3.0 * pe1 / (aa4*r); // betrag von r kommt von der umrechnung vom vektor r zum einheitsvector   dr = r er
-		e = exp(- evf_xi * (r / r12 - 1.0));
+		ff = evf_A * 3.0e-7 * pe1 / (aa4*aa);
+		e = exp(- evf_xi * (r / aa - 1.0));
 
 		//printf("dawaanr dist = %e ; fi = %e, fe = %e, sum %e\n", r, ffy, ff * dr[1] * e, ffy + ff * dr[1] * e);
 		//printf("dawaanr dist = %e, fi = %e %e %e, fe = %e %e %e\n", r, ffx, ffy, ffz,ff * dr[0] * e,ff * dr[1] * e,ff * dr[2] * e);
-		fffx = ff * dr[0] * e;
-		fffy = ff * dr[1] * e;
-		fffz = ff * dr[2] * e;
+		ffx += ff * dr[0] * e;
+		ffy += ff * dr[1] * e;
+		ffz += ff * dr[2] * e;
 
-		fe[0]=fffx;
-		fe[1]=fffy;
-		fe[2]=fffz;
+		//fe[0]=fffx;
+		//fe[1]=fffy;
+		//fe[2]=fffz;
 
 		//get_mi_vector(ffff,fe,fi);
 		//ffff2=ffff[0]*ffff[0]+ffff[1]*ffff[1]+ffff[2]*ffff[2];
@@ -429,9 +437,9 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 		//	if((int)(sim_time*10000)%300==0)printf("|fe| %2e |sum i+e| %.2e\n", fffffe,-1.0*sqrt((ffx+fffx)*(ffx+fffx)+(ffy+fffy)*(ffy+fffy)+(ffz+fffz)*(ffz+fffz)));
 		//}
 
-		ffx += fffx;
-		ffy += fffy;
-		ffz += fffz;
+		//ffx += fffx;
+		//ffy += fffy;
+		//ffz += fffz;
 		//if((int)(sim_time*1000)%300==0)printf("fe = %.2e %.2e %.2e |fe| %2e sum %.2e %.2e %.2e |sum| %.2e\n", fffx, fffy, fffz, sqrt(fffx*fffx+fffy*fffy+fffz*fffz),ffx,ffy,ffz,sqrt(ffx*ffx+ffy*ffy+ffz*ffz));
 
 
@@ -441,9 +449,9 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 
 // adaptive EVF, reverse magnetic interaction force, should work similar than exluded volume force
 #ifdef EXCLUDED_VOLUME_FORCE_V3
-	r12 = p1->p.radius + p2->p.radius;
-	if(r < (evf_cut + r12)){
-		multiplier=1.0-((r-r12)/evf_cut);
+	aa = p1->p.radius + p2->p.radius;
+	if(r < (evf_cut + aa)){
+		multiplier=1.0-((r-aa)/evf_cut);
 		//if(multiplier>0.95 && multiplier < 1.05) multiplier = 1.0;
 
 		//if((int)(sim_time*100)%300==0)printf("%d d = %.2e ; fi = %.2e %.2e %.2e |fi| %.2e; multi %.2e fe = %.2e %.2e %.2e |fe| %.2e |diff| %.2e\n", (int)(sim_time*10000), rr, ffx, ffy, ffz, sqrt(ffx*ffx+ffy*ffy+ffz*ffz), multiplier, ffx*multiplier, ffy*multiplier, ffz*multiplier, sqrt((ffx*multiplier)*(ffx*multiplier)+(ffy*multiplier)*(ffy*multiplier)+(ffz*multiplier)*(ffz*multiplier)), sqrt(ffx*ffx+ffy*ffy+ffz*ffz)-sqrt((ffx*multiplier)*(ffx*multiplier)+(ffy*multiplier)*(ffy*multiplier)+(ffz*multiplier)*(ffz*multiplier)));
@@ -455,9 +463,9 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 		//	fe[2] = ffz;
 		//}
 		//else{
-			fe[0] = (ffx*multiplier);
-			fe[1] = (ffy*multiplier);
-			fe[2] = (ffz*multiplier);
+			ffx += (ffx*multiplier);
+			ffy += (ffy*multiplier);
+			ffz += (ffz*multiplier);
 		//}
 		/*ffx -= fe[0];
 		ffy -= fe[1];
