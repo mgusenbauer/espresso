@@ -339,7 +339,7 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
   double dr[3];
   
 #ifdef EXCLUDED_VOLUME_FORCE
-  double ff, m,m1, m2,mm,aa,aa2,aa4,e, fffx,fffy,fffz, ffff[3],ffff2,ffff3,fi[3],fe[3],fffffi,fffffe, multiplier;
+  double ff, m,m1, m2,mm,aa,aa2,aa4,ex, fffx,fffy,fffz, ffff[3],ffff2,ffff3,fi[3],fe[3],fffffi,fffffe, multiplier;
 #endif
 	
   // Distance between particles
@@ -378,7 +378,6 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
     ffx=ab*dr[0]+cc*p1->r.dip[0]+d*p2->r.dip[0];
     ffy=ab*dr[1]+cc*p1->r.dip[1]+d*p2->r.dip[1];
     ffz=ab*dr[2]+cc*p1->r.dip[2]+d*p2->r.dip[2];
-#endif
     
 #ifdef EXCLUDED_VOLUME_FORCE
 // mu0 is not fully implemented in calc_dipole_dipole_ia, take care in excluded volume force calculatoin
@@ -394,11 +393,11 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 		aa4=aa2*aa2;
 
 		ff = evf_A * m2 / aa4;
-		e = exp(- evf_xi * (r / r12 - 1));
+		ex = exp(- evf_xi * (r / r12 - 1));
 
-		ffx += ff * dr[0] * e;
-		ffy += ff * dr[1] * e;
-		ffz += ff * dr[2] * e;
+		ffx += ff * dr[0] * ex;
+		ffy += ff * dr[1] * ex;
+		ffz += ff * dr[2] * ex;
 	}
 #endif
 
@@ -414,13 +413,16 @@ double calc_dipole_dipole_ia(Particle* p1, Particle *p2, int force_flag)
 		aa4=aa2*aa2;
 
 		ff = evf_A * 3.0e-7 * pe1 / (aa4*aa);
-		e = exp(- evf_xi * (r / aa - 1.0));
+		ex = exp(- evf_xi * (r / aa - 1.0));
 
 		//printf("dawaanr dist = %e ; fi = %e, fe = %e, sum %e\n", r, ffy, ff * dr[1] * e, ffy + ff * dr[1] * e);
-		//printf("dawaanr dist = %e, fi = %e %e %e, fe = %e %e %e\n", r, ffx, ffy, ffz,ff * dr[0] * e,ff * dr[1] * e,ff * dr[2] * e);
-		ffx += ff * dr[0] * e;
-		ffy += ff * dr[1] * e;
-		ffz += ff * dr[2] * e;
+		//printf("dawaanr dist = %e, fi = %e %e %e, fe = %e %e %e, diff %e %e %e \n", r, ffx, ffy, ffz,ff * dr[0] * ex,ff * dr[1] * ex,ff * dr[2] * ex, ffx - ff * dr[0] * ex, ffy - ff * dr[1] * ex, ffz- ff * dr[2] * ex );
+		//if(r < 1.2 && r > 0.8)
+			printf("dawaanr dist = %e, fiy = %e, fey = %e, diffy %e \n", r, ffy,ff * dr[1] * ex, ffy - ff * dr[1] * ex );
+
+		ffx += ff * dr[0] * ex;
+		ffy += ff * dr[1] * ex;
+		ffz += ff * dr[2] * ex;
 
 		//fe[0]=fffx;
 		//fe[1]=fffy;
